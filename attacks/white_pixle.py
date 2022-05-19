@@ -10,19 +10,25 @@ class WhitePixle(Attack):
     def __init__(self, model,
                  swap=False,
                  average_channels=True,
-                 attack_limit=-1):
+                 attack_limit=-1,
+                 descending: bool = False):
 
         super().__init__("WhitePixle", model)
 
         self.swap = swap
         self.average_channels = average_channels
         self.attack_limit = attack_limit
+        self.descending = descending
 
         # self._supported_mode = ['default', 'targeted']
         self._supported_mode = ['default']
 
     def forward(self, images, labels):
         n_im, c, h, w = images.shape
+
+        images = images.to(self.device)
+        labels = labels.to(self.device)
+
         images.requires_grad = True
 
         loss = cross_entropy(self.model(images), labels)
@@ -40,7 +46,7 @@ class WhitePixle(Attack):
         data_grad = torch.abs(data_grad)
 
         data_grad = torch.flatten(data_grad, 1)
-        indexes = torch.argsort(data_grad, -1)
+        indexes = torch.argsort(data_grad, -1, descending=self.descending)
 
         adv_images = []
         for img_i in range(len(images)):
@@ -63,15 +69,15 @@ class WhitePixle(Attack):
 
                 if self.average_channels:
                     # adv_img[:, a] = img[:, b]
-                    v = adv_img[:, b]
-                    adv_img[:, b] = img[:, a]
+                    v = adv_img[:, b[0], b[1]]
+                    adv_img[:, b[0], b[1]] = img[:, a[0], a[1]]
                     if self.swap:
-                        adv_img[:, a] = v
+                        adv_img[:, a[0], a[1]] = v
                 else:
-                    v = adv_img[b]
-                    adv_img[b] = img[a]
+                    v = adv_img[b[0], b[1], b[2]]
+                    adv_img[b[0], b[1], b[2]] = img[a[0], a[1], a[2]]
                     if self.swap:
-                        adv_img[a] = v
+                        adv_img[a[0], a[1], a[2]] = v
 
                 output = self.model(adv_img[None, :])
                 pred = output.argmax(-1)

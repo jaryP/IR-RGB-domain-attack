@@ -1,10 +1,12 @@
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from torchvision import datasets, transforms
+from tqdm import tqdm
 
 from resnet import resnet20
 from attacks.white_pixle import WhitePixle
@@ -35,27 +37,39 @@ def test(model, loader):
     return final_acc, adv_examples
 
 
-class Net(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+def attack_dataset(model, attack, loader):
+    total = 0
+    corrects = 0
+    device = next(model.parameters()).device
+    norms = []
 
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = torch.flatten(x, 1)  # flatten all dimensions except batch
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+    for data, target in tqdm(loader):
+        data, target = data.to(device), target.to(device)
+        output = model(data)
+        init_pred = output.argmax(1)
+
+        mask = init_pred == target
+
+        data = data[mask]
+        target = target[mask]
+
+        adv_images = attack(data, target)
+
+        diff = (adv_images - data).view(data.shape[0], -1)
+        l1_norm = torch.linalg.norm(diff, ord=0, dim=-1) / 3
+        norms.extend(l1_norm.detach().cpu().numpy())
+
+        print(np.mean(norms))
+        output = model(adv_images)
+        pred = output.argmax(1)
+        corrects += (pred == target).sum().item()
+        total += pred.shape[0]
+
+    return total, corrects, norms
+
 
 test_loader = torch.utils.data.DataLoader(
-    datasets.CIFAR10('./data', train=False, download=True,
+    datasets.CIFAR10('./dataset', train=False, download=True,
                      transform=transforms.Compose([
                          transforms.ToTensor(),
                      ])),
@@ -68,11 +82,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = resnet20().to(device)
 print(model.__class__.__name__)
 
-if os.path.isfile('data/adv_model.pth'):
-    model.load_state_dict(torch.load('data/adv_model.pth', map_location=device))
+if os.path.isfile('data/model.pth'):
+    model.load_state_dict(torch.load('data/model.pth', map_location=device))
 else:
     train_loader = torch.utils.data.DataLoader(
-        datasets.CIFAR10('./data', train=True, download=True,
+        datasets.CIFAR10('./dataset', train=True, download=True,
                          transform=transforms.Compose([
                              transforms.ToTensor(),
                          ])),
@@ -103,7 +117,31 @@ else:
 
         test(model, test_loader)
 
-    torch.save(model.state_dict(), 'data/adv_model.pth')
+    torch.save(model.state_dict(), 'data/model.pth')
+
+test(model, test_loader)
+
+attack = WhitePixle(attack_limit=100,
+                    average_channels=True,
+                    model=model,
+                    descending=False)
+
+# total = 0
+# corrects = 0
+#
+# for data, target in tqdm(test_loader):
+#     data = data.to(device)
+#     target = target.to(device)
+#
+#     adv_images = attack(data, target)
+#
+#     output = model(adv_images)
+#     pred = output.argmax(1)  # get the index of the max log-probability
+#     corrects += (pred == target).sum()
+#     total += pred.shape[0]
+
+attacked, correctly_attacked, norms = attack_dataset(model, attack, test_loader)
+print(attacked, correctly_attacked)
 
 # modified_pixels = []
 # 
@@ -192,7 +230,7 @@ else:
 #     total += pred.shape[0]
 # 
 # print(corrects, total, corrects / total)
-# 
+#
 # print(modified_pixels)
 # print(np.mean(modified_pixels))
 # print(np.std(modified_pixels))
