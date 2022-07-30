@@ -23,7 +23,7 @@ class WhitePixle(Attack):
         # self._supported_mode = ['default', 'targeted']
         self._supported_mode = ['default']
 
-    def forward(self, images, labels):
+    def forward(self, images, labels, return_swaps=False):
         n_im, c, h, w = images.shape
 
         images = images.to(self.device)
@@ -49,6 +49,8 @@ class WhitePixle(Attack):
         indexes = torch.argsort(data_grad, -1, descending=self.descending)
 
         adv_images = []
+        all_swaps = []
+
         for img_i in range(len(images)):
             img = images[img_i]
             adv_img = img.clone()
@@ -56,6 +58,8 @@ class WhitePixle(Attack):
 
             img_grads = data_grad[img_i]
             img_indexes = indexes[img_i]
+
+            image_swaps = []
 
             for i in range(len(img_indexes) // 2):
                 if 0 < self.attack_limit < i:
@@ -141,7 +145,7 @@ class RandomWhitePixle(Attack):
 
         self._supported_mode = ['default', 'targeted']
 
-    def forward(self, images, labels):
+    def forward(self, images, labels, return_solutions=False):
         n_im, c, h, w = images.shape
 
         x_bounds = tuple(
@@ -181,12 +185,10 @@ class RandomWhitePixle(Attack):
         indexes = indexes.detach().cpu().numpy()
 
         adv_images = []
+        swapped_pixels = []
 
         for img_i in range(len(images)):
             img = images[img_i]
-            adv_img = img.clone()
-
-            img_target = labels[img_i]
             img_indexes = indexes[img_i]
 
             img_probs = probs[img_i]
@@ -196,6 +198,7 @@ class RandomWhitePixle(Attack):
                                            target_attack=False)
 
             best_adv_image = img.clone()
+            image_swapped_pixels = []
 
             for restart_i in range(self.restarts):
                 stop = False
@@ -249,6 +252,8 @@ class RandomWhitePixle(Attack):
                         break
 
                 if best_solution is not None:
+                    image_swapped_pixels.append(best_solution)
+
                     (x, y), (x_offset, y_offset), pixels_places = best_solution
 
                     it_pixels_places = iter(pixels_places)
@@ -273,168 +278,13 @@ class RandomWhitePixle(Attack):
                 if stop:
                     break
 
+            swapped_pixels.append(image_swapped_pixels)
             adv_images.append(best_adv_image)
 
         adv_images = torch.stack(adv_images, 0)
-        return adv_images
 
-    def restart_forward(self, images, labels):
-        assert len(images.shape) == 3 or \
-               (len(images.shape) == 4 and images.size(0) == 1)
-
-        if len(images.shape) == 3:
-            images = images.unsqueeze(0)
-
-        if self._targeted:
-            labels = self._get_target_label(images, labels)
-
-        x_bounds = tuple(
-            [max(1, d if isinstance(d, int) else round(images.size(3) * d))
-             for d in self.p1_x_dimensions])
-
-        y_bounds = tuple(
-            [max(1, d if isinstance(d, int) else round(images.size(2) * d))
-             for d in self.p1_y_dimensions])
-
-        adv_images = []
-
-        images = images.clone().detach().to(self.device)
-        labels = labels.clone().detach().to(self.device)
-
-        bs, _, _, _ = images.shape
-
-        for idx in range(bs):
-            image, label = images[idx:idx + 1], labels[idx:idx + 1]
-
-            best_image = image.clone()
-            pert_image = image.clone()
-
-            loss, callback = self._get_fun(image, label,
-                                           target_attack=self._targeted)
-            best_solution = None
-
-            best_p = loss(solution=image, solution_as_perturbed=True)
-            image_probs = [best_p]
-
-            it = 0
-
-            for r in range(self.restarts):
-                stop = False
-
-                for it in range(self.max_patches):
-
-                    (x, y), (x_offset, y_offset) = \
-                        self.get_patch_coordinates(image=image,
-                                                   x_bounds=x_bounds,
-                                                   y_bounds=y_bounds)
-
-                    destinations = self.get_pixel_mapping(image, x, x_offset,
-                                                          y, y_offset,
-                                                          destination_image=
-                                                          best_image)
-
-                    solution = [x, y, x_offset, y_offset] + destinations
-
-                    pert_image = self._perturb(source=image,
-                                               destination=best_image,
-                                               solution=solution)
-
-                    p = loss(solution=pert_image,
-                             solution_as_perturbed=True)
-
-                    if p < best_p:
-                        best_p = p
-                        best_solution = pert_image
-
-                    image_probs.append(best_p)
-
-                    if callback(pert_image, None, True):
-                        best_solution = pert_image
-                        stop = True
-                        break
-
-                if best_solution is None:
-                    best_image = pert_image
-                else:
-                    best_image = best_solution
-
-                if stop:
-                    break
-
-            adv_images.append(best_image)
-
-        adv_images = torch.cat(adv_images)
-
-        return adv_images
-
-    def iterative_forward(self, images, labels):
-        assert len(images.shape) == 3 or \
-               (len(images.shape) == 4 and images.size(0) == 1)
-
-        if len(images.shape) == 3:
-            images = images.unsqueeze(0)
-
-        if self._targeted:
-            labels = self._get_target_label(images, labels)
-
-        x_bounds = tuple(
-            [max(1, d if isinstance(d, int) else round(images.size(3) * d))
-             for d in self.p1_x_dimensions])
-
-        y_bounds = tuple(
-            [max(1, d if isinstance(d, int) else round(images.size(2) * d))
-             for d in self.p1_y_dimensions])
-
-        adv_images = []
-
-        images = images.clone().detach().to(self.device)
-        labels = labels.clone().detach().to(self.device)
-
-        bs, _, _, _ = images.shape
-
-        for idx in range(bs):
-            image, label = images[idx:idx + 1], labels[idx:idx + 1]
-
-            best_image = image.clone()
-
-            loss, callback = self._get_fun(image, label,
-                                           target_attack=self._targeted)
-
-            best_p = loss(solution=image, solution_as_perturbed=True)
-            image_probs = [best_p]
-
-            for it in range(self.max_patches):
-
-                (x, y), (x_offset, y_offset) = \
-                    self.get_patch_coordinates(image=image,
-                                               x_bounds=x_bounds,
-                                               y_bounds=y_bounds)
-
-                destinations = self.get_pixel_mapping(image, x, x_offset,
-                                                      y, y_offset,
-                                                      destination_image=best_image)
-
-                solution = [x, y, x_offset, y_offset] + destinations
-
-                pert_image = self._perturb(source=image,
-                                           destination=best_image,
-                                           solution=solution)
-
-                p = loss(solution=pert_image, solution_as_perturbed=True)
-
-                if p < best_p:
-                    best_p = p
-                    best_image = pert_image
-
-                image_probs.append(best_p)
-
-                if callback(pert_image, None, True):
-                    best_image = pert_image
-                    break
-
-            adv_images.append(best_image)
-
-        adv_images = torch.cat(adv_images)
+        if return_solutions:
+            return adv_images, swapped_pixels
 
         return adv_images
 

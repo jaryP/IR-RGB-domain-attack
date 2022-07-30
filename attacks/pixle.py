@@ -32,9 +32,16 @@ class Pixle(Attack):
         >>> attack = torchattacks.Pixle(model, x_dimensions=(0.1, 0.2), restarts=100, iteratsion=50)
         >>> adv_images = attack(images, labels)
     """
-    def __init__(self, model, x_dimensions=(2, 10), y_dimensions=(2, 10),
-                 pixel_mapping='random', restarts=20,
-                 max_iterations=100, update_each_iteration=False):
+
+    def __init__(self,
+                 model,
+                 x_dimensions=(2, 10),
+                 y_dimensions=(2, 10),
+                 pixel_mapping='random',
+                 restarts=20,
+                 max_iterations=100,
+                 update_each_iteration=False):
+
         super().__init__("Pixle", model)
 
         if restarts < 0 or not isinstance(restarts, int):
