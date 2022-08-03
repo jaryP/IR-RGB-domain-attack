@@ -1,0 +1,30 @@
+defaults:
+  - model: convnext_tiny
+  - dataset: nir_rgb
+#  - attack_type: black
+  - _self_
+
+paths:
+  log: ./runs
+
+params:
+  batch_size: 8
+  train: 0.85
+  val: 0.05
+  test: 0.10
+  classes: 9
+  img_size: 224
+
+train_params:
+  epoch_count: 100
+  lr: 0.001
+  log_freq: 10
+  device: 0
+
+params_attack:
+  x_dim: 3
+  y_dim: 3
+  rest: 100
+  max_iter: 50
+  attack_per_batch: 4
+

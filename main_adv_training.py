@@ -2,98 +2,21 @@ from itertools import chain
 
 import numpy as np
 import torch
-from torch.nn.functional import softmax, cross_entropy
+from torch import nn, softmax
+from torch import optim
+from torch.nn.functional import cross_entropy
+from torch.utils.data import random_split
+import hydra
+from hydra.core.config_store import ConfigStore
+from omegaconf import OmegaConf
+import logging
+
 from torchattacks.attack import Attack
 
-
-class WhitePixle(Attack):
-    def __init__(self, model,
-                 swap=False,
-                 average_channels=True,
-                 attack_limit=-1,
-                 descending: bool = False):
-
-        super().__init__("WhitePixle", model)
-
-        self.swap = swap
-        self.average_channels = average_channels
-        self.attack_limit = attack_limit
-        self.descending = descending
-
-        # self._supported_mode = ['default', 'targeted']
-        self._supported_mode = ['default']
-
-    def forward(self, images, labels, return_swaps=False):
-        n_im, c, h, w = images.shape
-
-        images = images.to(self.device)
-        labels = labels.to(self.device)
-
-        images.requires_grad = True
-
-        loss = cross_entropy(self.model(images), labels)
-        self.model.zero_grad()
-        loss.backward()
-
-        data_grad = images.grad.data
-
-        if self.average_channels:
-            data_grad = data_grad.mean(1)
-            shape = (h, w)
-        else:
-            shape = (c, h, w)
-
-        data_grad = torch.abs(data_grad)
-
-        data_grad = torch.flatten(data_grad, 1)
-        indexes = torch.argsort(data_grad, -1, descending=self.descending)
-
-        adv_images = []
-        all_swaps = []
-
-        for img_i in range(len(images)):
-            img = images[img_i]
-            adv_img = img.clone()
-            img_target = labels[img_i]
-
-            img_grads = data_grad[img_i]
-            img_indexes = indexes[img_i]
-
-            image_swaps = []
-
-            for i in range(len(img_indexes) // 2):
-                if 0 < self.attack_limit < i:
-                    break
-
-                less_important, more_important = img_indexes[i], img_indexes[
-                    - (i + 1)]
-
-                a = np.unravel_index(less_important.item(), shape)
-                b = np.unravel_index(more_important.item(), shape)
-
-                if self.average_channels:
-                    # adv_img[:, a] = img[:, b]
-                    v = adv_img[:, b[0], b[1]]
-                    adv_img[:, b[0], b[1]] = img[:, a[0], a[1]]
-                    if self.swap:
-                        adv_img[:, a[0], a[1]] = v
-                else:
-                    v = adv_img[b[0], b[1], b[2]]
-                    adv_img[b[0], b[1], b[2]] = img[a[0], a[1], a[2]]
-                    if self.swap:
-                        adv_img[a[0], a[1], a[2]] = v
-
-                output = self.model(adv_img[None, :])
-                pred = output.argmax(-1)
-
-                if img_target.item() != pred.item():
-                    # modified_pixels.append(i + 1)
-                    break
-
-            adv_images.append(adv_img)
-
-        adv_images = torch.stack(adv_images, 0)
-        return adv_images
+from attacks.base import get_attack
+from base.adv import adv_train, adv_testing, adv_validation
+from base.utils import get_model, get_dataset
+from configs.nir_config import NIRConfig
 
 
 class RandomWhitePixle(Attack):
@@ -166,7 +89,6 @@ class RandomWhitePixle(Attack):
         loss.backward()
 
         data_grad = images.grad.data
-
         data_grad = torch.abs(data_grad)
 
         if self.average_channels:
@@ -175,6 +97,7 @@ class RandomWhitePixle(Attack):
         else:
             shape = (c, h, w)
 
+        data_grad = data_grad.view(n_im, -1)
         indexes = torch.argsort(data_grad, -1).view(n_im, -1)
         # probs = torch.exp(data_grad) / \
         #         torch.exp(data_grad).sum(-1, keepdim=True)
@@ -215,8 +138,8 @@ class RandomWhitePixle(Attack):
 
                     pixels_to_take = x_offset * y_offset
                     selected_indexes = np.random.choice(img_indexes,
-                                               pixels_to_take,
-                                               True, img_probs)
+                                                        pixels_to_take,
+                                                        True, img_probs)
 
                     pixels_places = [np.unravel_index(i, shape)
                                      for i in selected_indexes]
@@ -236,7 +159,8 @@ class RandomWhitePixle(Attack):
                                 #     adv_img[:, a[0], a[1]] = v
                             else:
                                 # v = adv_img[b[0], b[1], b[2]]
-                                pert_image[b[0], b[1], b[2]] = img[a[0], a[1], a[2]]
+                                pert_image[b[0], b[1], b[2]] = img[
+                                    a[0], a[1], a[2]]
                                 # if self.swap:
                                 #     adv_img[a[0], a[1], a[2]] = v
 
@@ -244,10 +168,12 @@ class RandomWhitePixle(Attack):
 
                     if l < best_loss:
                         best_loss = l
-                        best_solution = ((x, y), (x_offset, y_offset), pixels_places)
+                        best_solution = (
+                            (x, y), (x_offset, y_offset), pixels_places)
 
                     if callback(pert_image, None, True):
-                        best_solution = ((x, y), (x_offset, y_offset), pixels_places)
+                        best_solution = (
+                            (x, y), (x_offset, y_offset), pixels_places)
                         stop = True
                         break
 
@@ -266,12 +192,14 @@ class RandomWhitePixle(Attack):
                             if self.average_channels:
                                 # adv_img[:, a] = img[:, b]
                                 # v = adv_img[:, b[0], b[1]]
-                                best_adv_image[:, b[0], b[1]] = img[:, a[0], a[1]]
+                                best_adv_image[:, b[0], b[1]] = img[:, a[0],
+                                                                a[1]]
                                 # if self.swap:
                                 #     adv_img[:, a[0], a[1]] = v
                             else:
                                 # v = adv_img[b[0], b[1], b[2]]
-                                best_adv_image[b[0], b[1], b[2]] = img[a[0], a[1], a[2]]
+                                best_adv_image[b[0], b[1], b[2]] = img[
+                                    a[0], a[1], a[2]]
                                 # if self.swap:
                                 #     adv_img[a[0], a[1], a[2]] = v
 
@@ -381,7 +309,6 @@ class RandomWhitePixle(Attack):
     def _get_fun(self, img, label, target_attack=False):
         img = img.to(self.device)
 
-
         if isinstance(label, torch.Tensor):
             label = label.cpu().numpy()
 
@@ -454,3 +381,87 @@ class RandomWhitePixle(Attack):
         destination[0, :, indexes[:, 0], indexes[:, 1]] = s
 
         return destination
+
+
+logger = logging.getLogger(__name__)
+
+cs = ConfigStore.instance()
+cs.store(name="NIR_config", node=NIRConfig)
+
+
+@hydra.main(config_path="configs", config_name="base_adv_config")
+def main(cfg: NIRConfig):
+    print(OmegaConf.to_yaml(cfg))
+
+    device = 'cpu'
+    if cfg.train_params.device != 'cpu' and torch.cuda.is_available():
+        device = f'cuda:{cfg.train_params.device}'
+
+    train_set, test_set, input_size, classes = get_dataset(
+        name=cfg.dataset.name, model_name=None,
+        path=cfg.dataset.path,
+        resize_dimensions=cfg.params.img_size)
+
+    train, val, test = cfg.params.train, cfg.params.val, cfg.params.test
+
+    # if isinstance(train, float):
+    #     train = int(train * len(dataset))
+
+    if isinstance(val, float):
+        val = int(val * len(train_set))
+
+    # if isinstance(test, float):
+    #     test = int(test * len(dataset))
+
+    train = len(train_set) - val
+
+    train_set, val_set = torch.utils.data.random_split(train_set, [
+        train, val])
+
+    train_loader = torch.utils.data.DataLoader(train_set,
+                                               batch_size=cfg.params.batch_size,
+                                               shuffle=True, num_workers=0)
+    test_loader = torch.utils.data.DataLoader(test_set,
+                                              batch_size=cfg.params.batch_size,
+                                              shuffle=False, num_workers=0)
+    val_loader = torch.utils.data.DataLoader(val_set,
+                                             batch_size=cfg.params.batch_size,
+                                             shuffle=False, num_workers=0)
+
+    model = get_model(cfg.model.name, input_size, classes,
+                      True)
+    model.to(device)
+
+    # attack = get_attack(cfg.attack_type.name, model, x=cfg.param_attack.x_dim,
+    #                     y=cfg.param_attack.y_dim,
+    #                     restarts=cfg.param_attack.rest,
+    #                     max_iterations=cfg.param_attack.max_iter)
+
+    attack = RandomWhitePixle(model=model,
+                              x_dimensions=cfg.params_attack.x_dim,
+                              y_dimensions=cfg.params_attack.y_dim,
+                              restarts=cfg.params_attack.rest,
+                              max_iterations=cfg.params_attack.max_iter)
+
+    print(cfg.model.name)
+    loss = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=cfg.train_params.lr)
+
+    for epoch in range(cfg.train_params.epoch_count):
+        adv_train(epoch, train_loader, model, optimizer, loss,
+                  cfg.train_params.log_freq,
+                  attack=attack,
+                  type_of_attack='white',
+                  attack_per_batch=cfg.params_attack.attack_per_batch)
+
+        adv_validation(model, val_loader, loss, attack=attack,
+                       type_of_attack='white',
+                       attack_per_batch=cfg.params_attack.attack_per_batch)
+
+    adv_testing(model, test_loader, attack=attack,
+                type_of_attack='white',
+                attack_per_batch=cfg.params_attack.attack_per_batch)
+
+
+if __name__ == '__main__':
+    main()

@@ -18,9 +18,8 @@ from torchattacks import OnePixel
 from tqdm import tqdm
 
 from attacks.base import IndexedDataset, get_default_attack_config, get_attack
-from base import get_model
 from evaluators import accuracy_score
-from utils import HiddenPrints, get_optimizer, get_dataset
+from base.utils import HiddenPrints, get_optimizer, get_dataset, get_model
 
 
 def calculate_scores(results: dict):
@@ -140,6 +139,7 @@ def my_app(cfg: DictConfig) -> None:
         training_cfg = cfg['training']
         epochs, batch_size = training_cfg['epochs'], \
                              training_cfg['batch_size']
+        resize_dimensions = training_cfg.get('resize_dimensions', None)
 
         optimizer_cfg = cfg['optimizer']
         optimizer_name, lr, momentum, weight_decay = optimizer_cfg.get(
@@ -157,6 +157,7 @@ def my_app(cfg: DictConfig) -> None:
 
         train_set, test_set, input_size, classes = \
             get_dataset(name=dataset_name,
+                        resize_dimensions=resize_dimensions,
                         model_name=None,
                         augmentation=augmented_dataset,
                         path=dataset_path)
@@ -327,7 +328,7 @@ def my_app(cfg: DictConfig) -> None:
                         continue
                     else:
                         d = {'label': y.item(),
-                             'correct_label_prob': probs[y.label()],
+                             'correct_label_prob': probs[y.item()],
                              'attacks': {}}
 
                     for offset in tqdm(range(classes), leave=False):
@@ -399,7 +400,7 @@ def my_app(cfg: DictConfig) -> None:
                                 # 'attacked_label': attack_label,
                                 'time': elapsed_time,
                                 # 'probs': final_prob,
-                                'correct_label_prob': final_prob[y.label()],
+                                'correct_label_prob': final_prob[y.item()],
                                 'attacked_label_prob': final_prob[attack_label],
                                 'highest_label_prob': max(final_prob),
 

@@ -5,17 +5,23 @@ from typing import Sequence
 
 import numpy as np
 import torch
+import torchvision
 from torch import optim, nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets
-from torchvision.datasets.folder import default_loader, DatasetFolder, \
+from torchvision.datasets.folder import default_loader, \
     ImageFolder
+from torchvision.models import alexnet, vgg11, vgg16, resnet18, resnet34, \
+    resnet50, resnext50_32x4d, resnext101_32x8d
 from torchvision.transforms import Resize, ToTensor, Normalize, Compose, \
     RandomHorizontalFlip, RandomCrop, transforms
 from tqdm import tqdm
 from pathlib import Path
-from base import Cub2011
+
+from base.ir import load_nir_dataset, PathDataset
+from models.alexnet import AlexNet
+from models.resnet import resnet20
 
 
 class TinyImagenet(Dataset):
@@ -180,14 +186,15 @@ class HiddenPrints:
         sys.stdout = self._original_stdout
 
 
-def get_dataset(name, model_name, augmentation=False, path=None):
+def get_dataset(name, model_name, resize_dimensions=None,
+                augmentation=False, path=None):
     if path is None:
         if name == 'imagenet':
             dataset_base_path = 'var/datasets/imagenet/'
         dataset_base_path = '~/datasets/'
     else:
         dataset_base_path = path
-    
+
     if name == 'mnist':
         t = [Resize((32, 32)),
              ToTensor(),
@@ -231,6 +238,10 @@ def get_dataset(name, model_name, augmentation=False, path=None):
             # Normalize(mn, std)
         ]
 
+        if resize_dimensions is not None:
+            tt.append(Resize(resize_dimensions))
+            t.append(Resize(resize_dimensions))
+
         transform = Compose(t)
         train_transform = Compose(tt)
 
@@ -260,6 +271,10 @@ def get_dataset(name, model_name, augmentation=False, path=None):
             ToTensor(),
         ]
 
+        if resize_dimensions is not None:
+            tt.append(Resize(resize_dimensions))
+            t.append(Resize(resize_dimensions))
+
         transform = Compose(t)
         train_transform = Compose(tt)
 
@@ -283,12 +298,14 @@ def get_dataset(name, model_name, augmentation=False, path=None):
 
         t = [
             transforms.ToTensor(),
-
         ]
+
+        if resize_dimensions is not None:
+            tt.append(Resize(resize_dimensions))
+            t.append(Resize(resize_dimensions))
 
         transform = transforms.Compose(t)
         train_transform = transforms.Compose(tt)
-
 
         train_set = TinyImagenet('~/datasets/',
                                  transform=train_transform, train=True)
@@ -308,8 +325,55 @@ def get_dataset(name, model_name, augmentation=False, path=None):
         input_size = (3, 256, 256)
         classes = 1000
 
+    elif 'nir' in name:
+        input_size = (420, 420)
+        classes = 9
+
+        tt, t = [], []
+
+        if resize_dimensions is not None:
+            tt.append(Resize((resize_dimensions, resize_dimensions)))
+            t.append(Resize((resize_dimensions, resize_dimensions)))
+            input_size = (resize_dimensions, resize_dimensions)
+
+        if augmentation:
+            tt.extend([
+                       transforms.RandomCrop(resize_dimensions,
+                                             padding=28),
+                       RandomHorizontalFlip()])
+
+        tt.extend([ToTensor(),
+                   transforms.Normalize(0.5, 0.5)])
+
+        t.extend([ToTensor(),
+                  transforms.Normalize(0.5, 0.5)])
+
+        transform = Compose(t)
+        train_transform = Compose(tt)
+
+        _, ir, rgb = load_nir_dataset(dataset_base_path)
+
+        np.random.seed(0)
+        n = len(ir)
+        n_test = int(0.1 * n)
+        idxs = np.arange(n)
+        np.random.shuffle(idxs)
+
+        if name == 'ir_nir':
+            train_set = PathDataset(paths=[ir[i] for i in idxs[n_test:]],
+                                    is_ir=True, transform=train_transform)
+            test_set = PathDataset(paths=[ir[i] for i in idxs[:n_test]],
+                                   is_ir=True, transform=transform)
+        elif name == 'rgb_nir':
+            train_set = PathDataset(paths=[rgb[i] for i in idxs[n_test:]],
+                                    is_ir=False, transform=train_transform)
+            test_set = PathDataset(paths=[rgb[i] for i in idxs[:n_test]],
+                                   is_ir=False, transform=transform)
+        else:
+            assert False
     else:
-        assert False
+        assert False, f'{name} is not a valid NIR dataset. ' \
+                      f'Accepted datasets are: ir_nir or rgb_nir.'
 
     return train_set, test_set, input_size, classes
 
@@ -428,3 +492,79 @@ def model_evaluator(backbone: nn.Module,
     score = correct / total
 
     return score, total, correct
+
+
+def get_model(name, image_size, classes, pre_trained=False,
+              is_imagenet=False):
+    name = name.lower()
+
+    pre_trained = pre_trained or is_imagenet
+
+    if name == 'alexnet':
+
+        if is_imagenet:
+            return alexnet(pretrained=True)
+        else:
+            return AlexNet(image_size[0], classes)
+
+    if 'vgg' in name:
+        if name == 'vgg11':
+            model = vgg11(num_classes=classes, pretrained=pre_trained)
+        elif name == 'vgg16':
+            model = vgg16(num_classes=classes, pretrained=pre_trained)
+        else:
+            assert False
+
+        if pre_trained:
+            model.classifier[-1] = nn.Linear(
+                model.classifier[-1].in_features, classes)
+
+    elif 'resnet' in name:
+        if name == 'resnet20':
+            model = resnet20(classes)
+        elif name == 'resnet18':
+            model = resnet18(num_classes=classes, pretrained=pre_trained)
+        elif name == 'resnet34':
+            model = resnet34(num_classes=classes, pretrained=pre_trained)
+        elif name == 'resnet50':
+            model = resnet50(num_classes=classes, pretrained=pre_trained)
+        else:
+            assert False
+
+        if pre_trained:
+            model.fd = nn.Linear(
+                model.fc.in_features, classes)
+
+    elif 'resnext' in name:
+        weights = None
+        if pre_trained:
+            weights = 'DEFAULT'
+        if name == 'resnext50_32x4d':
+            model = resnext50_32x4d(weights=weights)
+        elif name == 'resnext101_32x8d':
+            model = resnext101_32x8d(weights=weights)
+        else:
+            assert False
+
+        if pre_trained:
+            model.fd = nn.Linear(
+                model.fc.in_features, classes)
+
+    elif 'convnext' in name:
+        if pre_trained:
+            weights = 'DEFAULT'
+        else:
+            weights = None
+
+        if name == 'convnext_tiny':
+            model = torchvision.models.convnext_tiny(weights)
+        else:
+            assert False
+
+        if pre_trained:
+            model.classifier[-1] = nn.Linear(
+                model.classifier[-1].in_features, classes)
+    else:
+        assert False
+
+    return model

@@ -83,7 +83,7 @@ def get_default_attack_config(cfg: DictConfig):
              'select_subset': False,
              'fixed_selection_quantile': 0.8,
              'seed': None}
-    elif name == 'pixle':
+    elif name == 'black_pixle':
         d = {'max_iterations': 100,
              'restarts': 0,
              'x_dimensions': (0, 10),
@@ -104,7 +104,7 @@ def get_default_attack_config(cfg: DictConfig):
     elif name == 'svd':
         d = {}
     else:
-        assert False
+        assert False, f'The attack {name} is not present'
 
     d.update(cfg)
 
@@ -193,7 +193,7 @@ def get_attack(cfg: DictConfig):
                                n_scratches=cfg.get('n_scratches', 1),
                                max_iterations=cfg.get('max_iterations', 1000))
         else:
-            assert False
+            assert False, f'The attack {name} is not present'
 
     return method
 
