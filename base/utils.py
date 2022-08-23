@@ -195,6 +195,8 @@ def get_dataset(name, model_name, resize_dimensions=None,
     else:
         dataset_base_path = path
 
+    dataset_base_path = os.path.expanduser(dataset_base_path)
+
     if name == 'mnist':
         t = [Resize((32, 32)),
              ToTensor(),
