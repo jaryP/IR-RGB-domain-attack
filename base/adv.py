@@ -64,6 +64,7 @@ def adv_train(epoch, loader, net, optimizer, loss_func, log_freq, attack,
             adv_missclass += (predicted[idx] != targets[
                 idx]).sum().item()  # attacchi che hanno avuto successo
 
+            break
             # statistics
             running_loss += loss.item()
             if (batch_idx) % log_freq == 0:  # print ogni log_freq mini batch
@@ -126,6 +127,7 @@ def adv_train(epoch, loader, net, optimizer, loss_func, log_freq, attack,
             if (batch_idx) % log_freq == 0:
                 print('[Epoch : %d, Iter: %5d] loss: %.3f' %
                       (epoch + 1, batch_idx, running_loss / log_freq))
+
                 losses.append(running_loss / log_freq)
                 running_loss = 0.0
                 print('Accuratezza sul train-set di img: {} %'.format(
@@ -230,22 +232,25 @@ def adv_validation(net, loader, loss_func, attack, type_of_attack,
             correct += predicted.eq(targets.data).cpu().sum().item()
             adv_missclass += (predicted[idx] != targets[idx]).sum().item()
 
-        print('Accuratezza sul validation-set di img: {} %'.format(
-            100 * (correct / total)))
-        logger.info(f'Validation accuracy: {100 * (correct / total)}')
-        print(
-            'Rateo di successo dell attacco sul validation-set di img: {} %'.format(
-                100 * (adv_missclass / adv_num)))
-        logger.info(
-            f'Success rate on validation set: {100 * (adv_missclass / adv_num)}')
+        if total > 0:
+            print('Accuratezza sul validation-set di img: {} %'.format(
+                100 * (correct / total)))
+            logger.info(f'Validation accuracy: {100 * (correct / total)}')
+            print(
+                'Rateo di successo dell attacco sul validation-set di img: {} %'.format(
+                    100 * (adv_missclass / adv_num)))
+            logger.info(
+                f'Success rate on validation set: {100 * (adv_missclass / adv_num)}')
+
+    return correct, adv_missclass, total
 
 
 def adv_testing(net, loader, attack, type_of_attack, attack_per_batch):
     net.eval()
     correct = 0
-    adv_num = 0
     total = 0
     adv_missclass = 0
+
     device = next(net.parameters()).device
 
     for batch_idx, (inputs, targets) in enumerate(tqdm(loader)):
@@ -259,6 +264,9 @@ def adv_testing(net, loader, attack, type_of_attack, attack_per_batch):
         inputs = inputs[mask]
         targets = targets[mask]
 
+        if len(inputs) == 0 or inputs.shape[0] == 0:
+            continue
+
         adv = attack(inputs, targets)
 
         predicted = torch.argmax(net(adv), 1)
@@ -266,14 +274,17 @@ def adv_testing(net, loader, attack, type_of_attack, attack_per_batch):
         correct += predicted.eq(targets.data).cpu().sum().item()
         adv_missclass += (predicted != targets).sum().item()
 
-    print('Accuratezza sul test-set di img: {} %'.format(
-        100 * (correct / total)))
-    logger.info(f'Test accuracy: {100 * (correct / total)}')
-    print(
-        'Rateo di successo dell attacco sul test-set di img: {} %'.format(
-            100 * (adv_missclass / adv_num)))
-    logger.info(
-        f'Success rate on test set: {100 * (adv_missclass / adv_num)}')
+    if total > 0:
+        print('Accuratezza sul test-set di img: {} %'.format(
+            100 * (correct / total)))
+        logger.info(f'Test accuracy: {100 * (correct / total)}')
+        print(
+            'Rateo di successo dell attacco sul test-set di img: {} %'.format(
+                100 * (adv_missclass / total)))
+        logger.info(
+            f'Success rate on test set: {100 * (adv_missclass / total)}')
+
+    return correct, adv_missclass, total
 
     # if type_of_attack == 'black':
     #     print('The attack is:', type_of_attack)

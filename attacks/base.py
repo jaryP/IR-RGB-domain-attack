@@ -93,6 +93,16 @@ def get_default_attack_config(cfg: DictConfig):
              'pixel_mapping': 'random',
              'update_each_iteration': False}
 
+    elif name == 'white_pixle':
+        d = {'max_iterations': 100,
+             'restarts': 0,
+             'x_dimensions': (0, 10),
+             'y_dimensions': (0, 10),
+             'restart_callback': True,
+             'swap': False,
+             'pixel_mapping': 'random',
+             'update_each_iteration': False}
+
     elif name == 'scratch_that':
         d = {'population': 1,
              'mutation_rate': (0.5, 1),
@@ -171,18 +181,32 @@ def get_attack(cfg: DictConfig):
                              'update_each_iteration',
                              False)
                          )
-        elif name == 'random_white_pixle':
-            return RandomWhitePixle(
-                model,
-                average_channels=cfg.get('average_channels', True),
-                x_dimensions=cfg.get('x_dimensions',
-                                              (2, 10)),
-                y_dimensions=cfg.get('y_dimensions',
-                                              (2, 10)),
-                pixel_mapping='random',
-                restarts=cfg.get('restarts', 20),
-                max_iterations=cfg['max_iterations'],
-                update_each_iteration=False)
+        elif name == 'white_pixle':
+            return RandomWhitePixle(model,
+                                    average_channels=cfg.get('average_channels',
+                                                             True),
+                                    max_iterations=cfg['max_iterations'],
+                                    pixel_mapping=cfg['pixel_mapping'],
+                                    restarts=cfg.get('restarts', 0),
+                                    x_dimensions=cfg.get('x_dimensions',
+                                                         (1, 10)),
+                                    y_dimensions=cfg.get('y_dimensions',
+                                                         (1, 10)),
+                                    update_each_iteration=cfg.get(
+                                        'update_each_iteration', False)
+                                    )
+        # elif name == 'random_white_pixle':
+        #     return RandomWhitePixle(
+        #         model,
+        #         average_channels=cfg.get('average_channels', True),
+        #         x_dimensions=cfg.get('x_dimensions',
+        #                              (2, 10)),
+        #         y_dimensions=cfg.get('y_dimensions',
+        #                              (2, 10)),
+        #         pixel_mapping='random',
+        #         restarts=cfg.get('restarts', 20),
+        #         max_iterations=cfg['max_iterations'],
+        #         update_each_iteration=False)
 
         elif name == 'scratch_that':
             return ScratchThat(model,

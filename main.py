@@ -240,6 +240,18 @@ def my_app(cfg: DictConfig) -> None:
 
         model.eval()
 
+        with torch.no_grad():
+            test_score, _, _ = accuracy_score(model=model,
+                                              dataset=testloader,
+                                              device=device)
+
+            train_score, _, _ = accuracy_score(model=model,
+                                               dataset=trainloader,
+                                               device=device)
+
+            log.info(f"Train score: {train_score}")
+            log.info(f"Test score: {test_score}")
+
         images = []
         labels = []
         indexes = []
@@ -379,7 +391,7 @@ def my_app(cfg: DictConfig) -> None:
                                 plt.close(f)
                                 f = plt.figure()
                                 plt.imshow(
-                                    np.moveaxis(img.cpu().numpy()[0], 0,
+                                    np.moveaxis(img.detach().cpu().numpy()[0], 0,
                                                 -1))
                                 plt.axis('off')
                                 f.savefig((os.path.join(base_images_save_path,

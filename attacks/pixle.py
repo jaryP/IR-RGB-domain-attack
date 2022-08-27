@@ -86,8 +86,8 @@ class Pixle(Attack):
             return self.iterative_forward(images, labels)
 
     def restart_forward(self, images, labels):
-        assert len(images.shape) == 3 or \
-               (len(images.shape) == 4 and images.size(0) == 1)
+        # assert len(images.shape) == 3 or \
+        #        (len(images.shape) == 4 and images.size(0) == 1), f'{images.shape}'
 
         if len(images.shape) == 3:
             images = images.unsqueeze(0)
@@ -104,6 +104,8 @@ class Pixle(Attack):
              for d in self.p1_y_dimensions])
 
         adv_images = []
+        iterations = []
+        statistics = []
 
         images = images.clone().detach().to(self.device)
         labels = labels.clone().detach().to(self.device)
@@ -123,10 +125,12 @@ class Pixle(Attack):
             best_p = loss(solution=image, solution_as_perturbed=True)
             image_probs = [best_p]
 
-            it = 0
+            im_iterations = 0
 
             for r in range(self.restarts):
                 stop = False
+
+                it = 0
 
                 for it in range(self.max_patches):
 
@@ -153,12 +157,14 @@ class Pixle(Attack):
                         best_p = p
                         best_solution = pert_image
 
-                    image_probs.append(best_p)
+                        image_probs.append(best_p)
 
                     if callback(pert_image, None, True):
                         best_solution = pert_image
                         stop = True
                         break
+
+                im_iterations += it
 
                 if best_solution is None:
                     best_image = pert_image
@@ -168,7 +174,13 @@ class Pixle(Attack):
                 if stop:
                     break
 
+            iterations.append(im_iterations)
+            statistics.append(image_probs)
+
             adv_images.append(best_image)
+
+        self.probs_statistics = statistics
+        self.required_iterations = iterations
 
         adv_images = torch.cat(adv_images)
 
@@ -192,11 +204,14 @@ class Pixle(Attack):
             [max(1, d if isinstance(d, int) else round(images.size(2) * d))
              for d in self.p1_y_dimensions])
 
+        iterations = []
+        statistics = []
         adv_images = []
 
         images = images.clone().detach().to(self.device)
         labels = labels.clone().detach().to(self.device)
 
+        it = 0
         bs, _, _, _ = images.shape
 
         for idx in range(bs):
@@ -239,7 +254,13 @@ class Pixle(Attack):
                     best_image = pert_image
                     break
 
+            iterations.append(it)
+            statistics.append(image_probs)
+
             adv_images.append(best_image)
+
+        self.probs_statistics = statistics
+        self.required_iterations = iterations
 
         adv_images = torch.cat(adv_images)
 

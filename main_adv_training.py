@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import torch
 from torch import nn
@@ -13,7 +14,6 @@ from attacks import Pixle, RandomWhitePixle
 from base.adv import adv_train, adv_testing, adv_validation
 from base.utils import get_model, get_dataset
 from configs.nir_config import NIRConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +83,10 @@ def main(cfg: NIRConfig):
 
     if os.path.exists('model.pt'):
         logger.info('Model loaded.')
-        model.load_state_dict('model.pt', map_location=device)
-
+        model.load_state_dict(os.path.join(os.getcwd(), 'model.pt'),
+                              map_location=device)
     else:
+        scores = {'train': {}, 'dev': {}, 'test': None}
 
         loss = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=cfg.train_params.lr)
@@ -97,15 +98,48 @@ def main(cfg: NIRConfig):
                       type_of_attack=cfg.attack_type.name,
                       attack_per_batch=cfg.params_attack.attack_per_batch)
 
-            adv_validation(model, val_loader, loss, attack=attack,
-                           type_of_attack=cfg.attack_type.name,
-                           attack_per_batch=cfg.params_attack.attack_per_batch)
+            # adv_validation(model, val_loader, loss, attack=attack,
+            #                type_of_attack=cfg.attack_type.name,
+            #                attack_per_batch=cfg.params_attack.attack_per_batch)
 
-        torch.save(model.state_dict(), 'model.pt')
+            dev_scores = adv_testing(model, val_loader, attack=attack,
+                                     type_of_attack=cfg.attack_type.name,
+                                     attack_per_batch=cfg.params_attack.attack_per_batch)
 
-    adv_testing(model, test_loader, attack=attack,
-                type_of_attack=cfg.attack_type.name,
-                attack_per_batch=cfg.params_attack.attack_per_batch)
+            train_scores = adv_testing(model, train_loader, attack=attack,
+                                       type_of_attack=cfg.attack_type.name,
+                                       attack_per_batch=cfg.params_attack.attack_per_batch)
+
+            scores['train'][epoch] = train_scores
+            scores['dev'][epoch] = dev_scores
+
+        test_scores = adv_testing(model, test_loader, attack=attack,
+                                  type_of_attack=cfg.attack_type.name,
+                                  attack_per_batch=cfg.params_attack.attack_per_batch)
+
+        scores['test'] = test_scores
+
+        with open(os.path.join(os.getcwd(), 'results.pt'), 'wb') as file:
+            pickle.dump(scores, file)
+
+        torch.save(model.state_dict(), os.path.join(os.getcwd(), 'model.pt'))
+
+    with open(os.path.join(os.getcwd(), 'results.pt'), 'rb') as file:
+        results = pickle.load(file)
+        train_scores, dev_scores, test_scores = results['train'], \
+                                                results['dev'],\
+                                                results['test']
+
+    for k in train_scores:
+        logger.info(f'Epoch {k}')
+        logger.info(f'Train scores {train_scores[k]}')
+        logger.info(f'Dev scores {dev_scores[k]}')
+
+    logger.info(f'Final test scores {test_scores}')
+
+    # test_Scores = adv_testing(model, test_loader, attack=attack,
+    #                         type_of_attack=cfg.attack_type.name,
+    #                         attack_per_batch=cfg.params_attack.attack_per_batch)
 
 
 if __name__ == '__main__':

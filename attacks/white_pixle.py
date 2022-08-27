@@ -176,6 +176,7 @@ class RandomWhitePixle(Attack):
             shape = (c, h, w)
 
         indexes = torch.argsort(data_grad, -1).view(n_im, -1)
+        data_grad = data_grad.view(n_im, -1)
         # probs = torch.exp(data_grad) / \
         #         torch.exp(data_grad).sum(-1, keepdim=True)
 
@@ -186,6 +187,9 @@ class RandomWhitePixle(Attack):
 
         adv_images = []
         swapped_pixels = []
+        iterations = []
+        statistics = []
+        image_probs = []
 
         for img_i in range(len(images)):
             img = images[img_i]
@@ -200,11 +204,14 @@ class RandomWhitePixle(Attack):
             best_adv_image = img.clone()
             image_swapped_pixels = []
 
+            im_iterations = 0
+
             for restart_i in range(self.restarts):
                 stop = False
                 best_solution = None
                 best_loss = loss(best_adv_image)
 
+                patch_i = 0
                 for patch_i in range(self.max_patches):
                     pert_image = best_adv_image.clone()
 
@@ -214,6 +221,7 @@ class RandomWhitePixle(Attack):
                                                    y_bounds=y_bounds)
 
                     pixels_to_take = x_offset * y_offset
+
                     selected_indexes = np.random.choice(img_indexes,
                                                pixels_to_take,
                                                True, img_probs)
@@ -246,11 +254,14 @@ class RandomWhitePixle(Attack):
                         best_loss = l
                         best_solution = ((x, y), (x_offset, y_offset), pixels_places)
 
+                    image_probs.append(best_loss)
+
                     if callback(pert_image, None, True):
                         best_solution = ((x, y), (x_offset, y_offset), pixels_places)
                         stop = True
                         break
 
+                im_iterations += patch_i
                 if best_solution is not None:
                     image_swapped_pixels.append(best_solution)
 
@@ -278,8 +289,14 @@ class RandomWhitePixle(Attack):
                 if stop:
                     break
 
+            iterations.append(im_iterations)
+            statistics.append(image_probs)
+
             swapped_pixels.append(image_swapped_pixels)
-            adv_images.append(best_adv_image)
+            adv_images.append(best_adv_image.detach())
+
+        self.probs_statistics = statistics
+        self.required_iterations = iterations
 
         adv_images = torch.stack(adv_images, 0)
 

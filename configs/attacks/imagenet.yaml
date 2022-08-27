@@ -1,32 +1,42 @@
-#1px_random_1:
-#  name: pixle
-#  restarts: 100
-#  max_iterations: 20
-#  x_dimensions: 1
-#  y_dimensions: 1
+1px_pixle_black:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 3
+  y_dimensions: 3
+  save_images: true
+  load: true
+  swap: false
+  pixel_mapping: random
+1px_pixle_white:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 3
+  y_dimensions: 3
+  save_images: true
+  load: true
+  swap: false
+  pixel_mapping: random
+#scratch_3bezier:
+#  name: scratch_that
+#  pupulation: 50
+#  max_patches: 50
+#  mutation_rate: 0.8
+#  crossover: 0.7
+#  scratch_type: bezier
 #  save_images: true
-#  load: true
-#  swap: false
-#  pixel_mapping: random
-scratch_3bezier:
-  name: scratch_that
-  pupulation: 50
-  max_patches: 50
-  mutation_rate: 0.8
-  crossover: 0.7
-  scratch_type: bezier
-  save_images: true
-scratch_3bezier_v:
-  name: scratch_that
-  pupulation: 50
-  max_patches: 50
-  mutation_rate: 0.8
-  crossover: 0.7
-  scratch_type: bezier
-  save_images: true
-  n_scratches: 3
-onepixel5:
-  name: onepixel
-  pixels: 5
-  steps: 50
-  popsize: 100
+#scratch_3bezier_v:
+#  name: scratch_that
+#  pupulation: 50
+#  max_patches: 50
+#  mutation_rate: 0.8
+#  crossover: 0.7
+#  scratch_type: bezier
+#  save_images: true
+#  n_scratches: 3
+#onepixel5:
+#  name: onepixel
+#  pixels: 5
+#  steps: 50
+#  popsize: 100
