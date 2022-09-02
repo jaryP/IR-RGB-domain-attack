@@ -486,7 +486,7 @@ class RandomWhitePixle(Attack):
                  average_channels=True,
                  restarts=20,
                  iterations=100,
-                 update_each_iteration=False, **kwargs):
+                 **kwargs):
 
         super().__init__("Pixle", model)
 
@@ -497,7 +497,6 @@ class RandomWhitePixle(Attack):
         assert mode in ['htl', 'lth']
 
         self.mode = mode
-        self.update_each_iteration = update_each_iteration
         self.iterations = iterations
         self.pixels_per_iteration = pixels_per_iteration
 

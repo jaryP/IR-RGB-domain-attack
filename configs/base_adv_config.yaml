@@ -26,6 +26,8 @@ train_params:
 params_attack:
   x_dim: 0.1
   y_dim: 0.1
-  rest: 50
-  max_iter: 100
-  attack_per_batch: 1
+  rest: 10
+  max_iter: 5
+  attack_per_batch: 4
+  pixels_per_iteration: 10
+  mode: htl

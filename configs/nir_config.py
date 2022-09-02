@@ -23,7 +23,7 @@ class Params:
 
 
 @dataclass
-class Train_params:
+class TrainParams:
     epoch_count: int
     lr: float
     log_freq: int
@@ -42,13 +42,25 @@ class Data:
     path: str
     name: str
 
+
 @dataclass
-class Par_attack:
+class PatchWhiteBox:
     x_dim: int
     y_dim: int
     rest: int
     max_iter: int
     attack_per_batch: int
+
+
+@dataclass
+class WhitePixelAttack:
+    x_dim: Union[int, float]
+    y_dim: Union[int, float]
+    rest: int
+    max_iter: int
+    attack_per_batch: int
+    pixels_per_iteration: int
+    mode: str
 
 
 @dataclass
@@ -62,8 +74,8 @@ class NIRConfig:
     paths: Paths
     files: Files
     params: Params
-    train_params: Train_params
+    train_params: TrainParams
     model: Models
-    params_attack: Par_attack
+    params_attack: WhitePixelAttack
     dataset: Data
     attack_type: Attacks

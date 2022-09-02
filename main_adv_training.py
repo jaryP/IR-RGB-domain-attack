@@ -13,6 +13,7 @@ import logging
 from tqdm import tqdm
 
 from attacks import Pixle, PatchWhitePixle
+from attacks.white_pixle import RandomWhitePixle
 from base.adv import adv_train, adv_testing, adv_validation
 from base.utils import get_model, get_dataset, model_training, model_evaluation
 from configs.nir_config import NIRConfig
@@ -70,11 +71,11 @@ def main(cfg: NIRConfig):
     model.to(device)
 
     if cfg.attack_type.name == 'white':
-        attack = PatchWhitePixle(model=model,
-                                 x_dimensions=cfg.params_attack.x_dim,
-                                 y_dimensions=cfg.params_attack.y_dim,
-                                 restarts=cfg.params_attack.rest,
-                                 max_iterations=cfg.params_attack.max_iter)
+        attack = RandomWhitePixle(model=model,
+                                  mode=cfg.params_attack.mode,
+                                  pixels_per_iteration=cfg.params_attack.pixels_per_iteration,
+                                  restarts=cfg.params_attack.rest,
+                                  iterations=cfg.params_attack.max_iter)
 
     elif cfg.attack_type.name == 'black':
         attack = Pixle(model=model,
@@ -85,19 +86,26 @@ def main(cfg: NIRConfig):
     else:
         assert False, 'The possible attacks are: white, black'
 
-    if os.path.exists('adv_model.pt'):
+    base_model_path = f'~/leonardo/{cfg.model.name}/{cfg.dataset.name}'
+    base_model_path = os.path.expanduser(base_model_path)
+
+    os.makedirs(base_model_path, exist_ok=True)
+
+    if os.path.exists(os.path.join(base_model_path, 'adv_model.pt')):
         logger.info('Adv. Model loaded.')
-        model.load_state_dict(torch.load(os.path.join(os.getcwd(), 'adv_model.pt'),
-                                  map_location=device))
+        model.load_state_dict(
+            torch.load(os.path.join(base_model_path, 'adv_model.pt'),
+                       map_location=device))
     else:
         scores = {'train': {}, 'dev': {}, 'test': None}
 
         loss = nn.CrossEntropyLoss()
 
-        if os.path.exists('model.pt'):
+        if os.path.exists(os.path.join(base_model_path, 'model.pt')):
             logger.info('Model loaded.')
-            model.load_state_dict(torch.load(os.path.join(os.getcwd(), 'model.pt'),
-                                  map_location=device))
+            model.load_state_dict(
+                torch.load(os.path.join(base_model_path, 'model.pt'),
+                           map_location=device))
         else:
             optimizer = optim.Adam(model.parameters(), lr=cfg.train_params.lr)
 
@@ -106,10 +114,10 @@ def main(cfg: NIRConfig):
                                    optimizer=optimizer, dataloader=train_loader)
 
             torch.save(model.state_dict(),
-                       os.path.join(os.getcwd(), 'model.pt'))
+                       os.path.join(base_model_path, 'model.pt'))
 
         tot, corrects = model_evaluation(model=model, dataloader=test_loader)
-        logger.info(f'base model score: {corrects/tot} ({corrects}/{tot}).')
+        logger.info(f'base model score: {corrects / tot} ({corrects}/{tot}).')
 
         optimizer = optim.Adam(model.parameters(), lr=cfg.train_params.lr)
 
@@ -129,7 +137,8 @@ def main(cfg: NIRConfig):
             dev_scores = adv_testing(model, val_loader, attack=attack)
 
             total, attacked_images, correctly_attacked = dev_scores
-            logger.info(f'Dev Images {total}, attacked images {attacked_images}')
+            logger.info(
+                f'Dev Images {total}, attacked images {attacked_images}')
             logger.info(f'Correctly attacked images: {correctly_attacked}')
 
             # train_scores = adv_testing(model, train_loader, attack=attack)
@@ -149,7 +158,8 @@ def main(cfg: NIRConfig):
         with open(os.path.join(os.getcwd(), 'results.pt'), 'wb') as file:
             pickle.dump(scores, file)
 
-        torch.save(model.state_dict(), os.path.join(os.getcwd(), 'adv_model.pt'))
+        torch.save(model.state_dict(),
+                   os.path.join(base_model_path, 'adv_model.pt'))
 
     with open(os.path.join(os.getcwd(), 'results.pt'), 'rb') as file:
         results = pickle.load(file)
