@@ -267,10 +267,14 @@ def get_dataset(name, model_name, resize_dimensions=None,
 
         tt.extend([
             ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465),
+                                 (0.2023, 0.1994, 0.2010))
         ])
 
         t = [
             ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465),
+                                 (0.2023, 0.1994, 0.2010))
         ]
 
         if resize_dimensions is not None:
@@ -295,11 +299,14 @@ def get_dataset(name, model_name, resize_dimensions=None,
             transforms.RandomRotation(20),
             transforms.RandomHorizontalFlip(0.5),
             transforms.ToTensor(),
-
+            transforms.Normalize((0.485, 0.456, 0.406),
+                                 (0.229, 0.224, 0.225))
         ]
 
         t = [
             transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406),
+                                 (0.229, 0.224, 0.225))
         ]
 
         if resize_dimensions is not None:
@@ -437,25 +444,21 @@ def ece_score(ground_truth: Sequence,
     return ece, prob_pred, prob_true, mce
 
 
-def model_training(backbone: nn.Module,
-                   classifier: nn.Module,
+def model_training(model: nn.Module,
                    epochs: int,
                    optimizer: Optimizer,
-                   dataloader: DataLoader,
-                   device: str = 'cpu'):
-    backbone.to(device)
-    classifier.to(device)
+                   dataloader: DataLoader):
+
+    device = next(model.parameters()).device
 
     for epoch in tqdm(range(epochs)):
-        backbone.train()
-        classifier.train()
+        model.train()
 
         for i, (inputs, labels) in enumerate(dataloader, 0):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
-            e = backbone(inputs)
-            outputs = classifier(e)
+            outputs = model(inputs)
 
             loss = nn.functional.cross_entropy(outputs, labels)
 
@@ -463,7 +466,28 @@ def model_training(backbone: nn.Module,
             loss.backward()
             optimizer.step()
 
-    return backbone, classifier
+    return model
+
+@torch.no_grad()
+def model_evaluation(model: nn.Module,
+                   dataloader: DataLoader):
+
+    device = next(model.parameters()).device
+
+    model.eval()
+    tot = 0
+    correct = 0
+
+    for i, (inputs, labels) in enumerate(dataloader, 0):
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        outputs = model(inputs)
+
+        tot += len(outputs)
+        correct += torch.argmax(outputs, -1).eq(labels).cpu().sum().item()
+
+    return tot, correct
 
 
 @torch.no_grad()
@@ -511,31 +535,29 @@ def get_model(name, image_size, classes, pre_trained=False,
 
     if 'vgg' in name:
         if name == 'vgg11':
-            model = vgg11(num_classes=classes, pretrained=pre_trained)
+            model = vgg11(pretrained=pre_trained)
         elif name == 'vgg16':
-            model = vgg16(num_classes=classes, pretrained=pre_trained)
+            model = vgg16(pretrained=pre_trained)
         else:
             assert False
 
-        if pre_trained:
-            model.classifier[-1] = nn.Linear(
-                model.classifier[-1].in_features, classes)
+        model.classifier[-1] = nn.Linear(
+            model.classifier[-1].in_features, classes)
 
     elif 'resnet' in name:
         if name == 'resnet20':
             model = resnet20(classes)
         elif name == 'resnet18':
-            model = resnet18(num_classes=classes, pretrained=pre_trained)
+            model = resnet18(pretrained=pre_trained)
         elif name == 'resnet34':
-            model = resnet34(num_classes=classes, pretrained=pre_trained)
+            model = resnet34(pretrained=pre_trained)
         elif name == 'resnet50':
-            model = resnet50(num_classes=classes, pretrained=pre_trained)
+            model = resnet50(pretrained=pre_trained)
         else:
             assert False
 
-        if pre_trained:
-            model.fd = nn.Linear(
-                model.fc.in_features, classes)
+        model.fc = nn.Linear(
+            model.fc.in_features, classes)
 
     elif 'resnext' in name:
         weights = None
@@ -548,9 +570,8 @@ def get_model(name, image_size, classes, pre_trained=False,
         else:
             assert False
 
-        if pre_trained:
-            model.fd = nn.Linear(
-                model.fc.in_features, classes)
+        model.fc = nn.Linear(
+            model.fc.in_features, classes)
 
     elif 'convnext' in name:
         if pre_trained:
@@ -563,9 +584,8 @@ def get_model(name, image_size, classes, pre_trained=False,
         else:
             assert False
 
-        if pre_trained:
-            model.classifier[-1] = nn.Linear(
-                model.classifier[-1].in_features, classes)
+        model.classifier[-1] = nn.Linear(
+            model.classifier[-1].in_features, classes)
     else:
         assert False
 

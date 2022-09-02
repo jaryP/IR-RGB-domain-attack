@@ -93,7 +93,7 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 16, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, 32, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, 64, num_blocks[2], stride=2)
-        self.classifier = nn.Linear(64, classes)
+        self.fc = nn.Linear(64, classes)
 
         self.apply(_weights_init)
 
@@ -114,7 +114,7 @@ class ResNet(nn.Module):
         out = F.avg_pool2d(out, out.size()[3])
 
         out = torch.flatten(out, 1)
-        out = self.classifier(out)
+        out = self.fc(out)
 
         return out
 

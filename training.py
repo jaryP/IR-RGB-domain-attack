@@ -11,7 +11,7 @@ from torchvision.models import resnet18
 from tqdm import tqdm
 
 from resnet import resnet20
-from attacks.white_pixle import WhitePixle, RandomWhitePixle
+from attacks.white_pixle import WhitePixle, PatchWhitePixle
 
 
 def test(model, loader):
@@ -147,11 +147,11 @@ attack = WhitePixle(attack_limit=100,
                     model=model,
                     descending=True)
 
-attack = RandomWhitePixle(model=model,
-                          x_dimensions=4,
-                          y_dimensions=4,
-                          restarts=100,
-                          max_iterations=100)
+attack = PatchWhitePixle(model=model,
+                         x_dimensions=4,
+                         y_dimensions=4,
+                         restarts=100,
+                         max_iterations=100)
 
 attacked, correctly_classified, norms = attack_dataset(model,
                                                        attack,

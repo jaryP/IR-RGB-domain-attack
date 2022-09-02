@@ -28,6 +28,8 @@ class Train_params:
     lr: float
     log_freq: int
     device: Union[str, int]
+    fine_tune_epochs: int
+    pre_trained: bool
 
 
 @dataclass

@@ -20,11 +20,12 @@ train_params:
   lr: 0.001
   log_freq: 10
   device: 0
+  pre_trained: false
+  fine_tune_epochs: 100
 
 params_attack:
   x_dim: 0.1
   y_dim: 0.1
-  rest: 100
-  max_iter: 50
-  attack_per_batch: 4
-
+  rest: 50
+  max_iter: 100
+  attack_per_batch: 1

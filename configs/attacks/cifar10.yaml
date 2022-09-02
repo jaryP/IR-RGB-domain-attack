@@ -5,19 +5,33 @@
   x_dimensions: 3
   y_dimensions: 3
   save_images: true
-  load: false
+  load: true
   swap: false
   pixel_mapping: random
-1px_pixle_white:
+1px_pixle_white_1:
   name: white_pixle
   restarts: 100
   max_iterations: 20
-  x_dimensions: 3
-  y_dimensions: 3
+  pixels_per_iteration: 1
   save_images: true
   load: false
   swap: false
-  pixel_mapping: random
+1px_pixle_white_2:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 3
+  save_images: true
+  load: false
+  swap: false
+1px_pixle_white_3:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 10
+  save_images: true
+  load: false
+  swap: false
 #scratch_3bezier:
 #  name: scratch_that
 #  pupulation: 50

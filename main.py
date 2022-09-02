@@ -383,7 +383,7 @@ def my_app(cfg: DictConfig) -> None:
                                             exist_ok=True)
                                 f = plt.figure()
                                 plt.imshow(
-                                    np.moveaxis(pert_images.cpu().numpy()[0],
+                                    np.moveaxis(np.clip(pert_images.cpu().numpy()[0], 0, 1),
                                                 0, -1))
                                 plt.axis('off')
                                 f.savefig((os.path.join(attack_images_save_path,
@@ -391,7 +391,7 @@ def my_app(cfg: DictConfig) -> None:
                                 plt.close(f)
                                 f = plt.figure()
                                 plt.imshow(
-                                    np.moveaxis(img.detach().cpu().numpy()[0], 0,
+                                    np.moveaxis(np.clip(img.detach().cpu().numpy()[0], 0, 1), 0,
                                                 -1))
                                 plt.axis('off')
                                 f.savefig((os.path.join(base_images_save_path,
