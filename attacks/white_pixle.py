@@ -506,7 +506,14 @@ class RandomWhitePixle(Attack):
         self._supported_mode = ['default', 'targeted']
 
     def forward(self, images, labels, return_solutions=False):
-        n_im, c, h, w = images.shape
+
+        shape = images.shape
+
+        if len(shape) == 3:
+            images = images[None]
+            c, h, w = shape
+        else:
+            _, c, h, w = shape
 
         images = images.to(self.device)
         labels = labels.to(self.device)
@@ -549,6 +556,12 @@ class RandomWhitePixle(Attack):
                 else:
                     shape = (c, h, w)
 
+                if isinstance(self.pixels_per_iteration, float):
+                    pixels_per_iteration = int(
+                        self.pixels_per_iteration * (h * w))
+                else:
+                    pixels_per_iteration = self.pixels_per_iteration
+
                 data_grad = data_grad.view(-1)
                 probs = data_grad / data_grad.sum(-1, keepdim=True)
 
@@ -567,6 +580,12 @@ class RandomWhitePixle(Attack):
                 source_prob = source_prob.detach().cpu().numpy()
                 dest_prob = dest_prob.detach().cpu().numpy()
 
+                source_prob = np.nan_to_num(source_prob, posinf=0.0, neginf=0.0)
+                dest_prob = np.nan_to_num(dest_prob, posinf=0.0, neginf=0.0)
+
+                if dest_prob.sum() == 0.0 or source_prob.sum() == 0.0:
+                    break
+
                 stop = False
                 best_solution = None
                 best_loss = loss_f(best_adv_image)
@@ -577,11 +596,11 @@ class RandomWhitePixle(Attack):
                     pert_image = best_adv_image.clone()
 
                     selected_indexes1 = np.random.choice(indexes,
-                                                        self.pixels_per_iteration,
+                                                        pixels_per_iteration,
                                                         False, source_prob)
 
                     selected_indexes2 = np.random.choice(indexes,
-                                                        self.pixels_per_iteration,
+                                                        pixels_per_iteration,
                                                         False, dest_prob)
 
                     aa = [np.unravel_index(_a, shape) for _a in selected_indexes1]

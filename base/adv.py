@@ -32,21 +32,27 @@ def adv_train(epoch, loader, model, optimizer, loss_func, log_freq, attack,
         # può succedere che l'ultima batch sia più piccola rispetto alle altre e che il numero di attacchi da fare sia superiore
         # perciò setto queste condizione nel caso in cui ci sia questo caso
         # es : ultima batch: 3  --- attacchi per batch : 4 --> ERRORE ---> attacchi per batch : 4/2
-        if len(inputs) < attack_per_batch and len(inputs) > 1:
-            attack_per_batch = len(inputs) // 2
-            idx = random.sample(range(len(inputs)), attack_per_batch)
+        # if len(inputs) < attack_per_batch and len(inputs) > 1:
+        #     attack_per_batch = len(inputs) // 2
+        #     idx = random.sample(range(len(inputs)), attack_per_batch)
 
         if len(inputs) > attack_per_batch:
             idx = random.sample(range(len(inputs)), attack_per_batch)
+            for i in idx:
+                adv = attack(inputs[i], targets[[i]])  # genera attacco
+                inputs[i] = adv  # sostituisci img pulita con quella attaccata
+                adv_num += 1  # aggiorna numero di attacchi generati
+        else:
+            inputs = attack(inputs, targets)  # genera attacco
 
-        if len(inputs) == 1 and 0.5 > np.random.rand():
-            attack_per_batch = 1
-            idx = random.sample(range(len(inputs)), attack_per_batch)
+        # if len(inputs) == 1 and 0.5 > np.random.rand():
+        #     attack_per_batch = 1
+        #     idx = random.sample(range(len(inputs)), attack_per_batch)
 
-        for i in idx:
-            adv = attack(inputs[i], targets[[i]])  # genera attacco
-            inputs[i] = adv  # sostituisci img pulita con quella attaccata
-            adv_num += 1  # aggiorna numero di attacchi generati
+        # for i in idx:
+        #     adv = attack(inputs[i], targets[[i]])  # genera attacco
+        #     inputs[i] = adv  # sostituisci img pulita con quella attaccata
+        #     adv_num += 1  # aggiorna numero di attacchi generati
 
         optimizer.zero_grad()
 
@@ -291,7 +297,7 @@ def adv_testing(net, loader, attack):
 
     device = next(net.parameters()).device
 
-    for batch_idx, (inputs, targets) in enumerate(tqdm(loader)):
+    for batch_idx, (inputs, targets) in enumerate(tqdm(loader, leave=False)):
         inputs, targets = inputs.to(device), targets.to(device)
 
         pred = net(inputs)

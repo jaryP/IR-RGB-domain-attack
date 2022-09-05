@@ -30,6 +30,7 @@ class TrainParams:
     device: Union[str, int]
     fine_tune_epochs: int
     pre_trained: bool
+    eval_every_n_epochs: int
 
 
 @dataclass
@@ -59,9 +60,9 @@ class WhitePixelAttack:
     rest: int
     max_iter: int
     attack_per_batch: int
-    pixels_per_iteration: int
+    pixels_per_iteration: Union[int, float]
     mode: str
-
+    name: str
 
 @dataclass
 class Attacks:
@@ -77,5 +78,6 @@ class NIRConfig:
     train_params: TrainParams
     model: Models
     params_attack: WhitePixelAttack
+    test_params_attack: WhitePixelAttack
     dataset: Data
     attack_type: Attacks

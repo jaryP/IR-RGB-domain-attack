@@ -70,19 +70,35 @@ def main(cfg: NIRConfig):
 
     model.to(device)
 
-    if cfg.attack_type.name == 'white':
+    if cfg.params_attack.name == 'white':
         attack = RandomWhitePixle(model=model,
                                   mode=cfg.params_attack.mode,
                                   pixels_per_iteration=cfg.params_attack.pixels_per_iteration,
                                   restarts=cfg.params_attack.rest,
                                   iterations=cfg.params_attack.max_iter)
 
-    elif cfg.attack_type.name == 'black':
+    elif cfg.params_attack.name == 'black':
         attack = Pixle(model=model,
                        x_dimensions=cfg.params_attack.x_dim,
                        y_dimensions=cfg.params_attack.y_dim,
                        restarts=cfg.params_attack.rest,
                        max_iterations=cfg.params_attack.max_iter)
+    else:
+        assert False, 'The possible attacks are: white, black'
+
+    if cfg.test_params_attack.name == 'white':
+        test_attack = RandomWhitePixle(model=model,
+                                       mode=cfg.test_params_attack.mode,
+                                       pixels_per_iteration=cfg.test_params_attack.pixels_per_iteration,
+                                       restarts=cfg.test_params_attack.rest,
+                                       iterations=cfg.test_params_attack.max_iter)
+
+    elif cfg.test_params_attack.name == 'black':
+        test_attack = Pixle(model=model,
+                            x_dimensions=cfg.test_params_attack.x_dim,
+                            y_dimensions=cfg.test_params_attack.y_dim,
+                            restarts=cfg.test_params_attack.rest,
+                            max_iterations=cfg.test_params_attack.max_iter)
     else:
         assert False, 'The possible attacks are: white, black'
 
@@ -121,37 +137,47 @@ def main(cfg: NIRConfig):
 
         optimizer = optim.Adam(model.parameters(), lr=cfg.train_params.lr)
 
+        dev_scores = adv_testing(model, val_loader, attack=test_attack)
+        total, attacked_images, correctly_attacked = dev_scores
+        logger.info(
+            f'(pre-training results) Dev Images {total}, attacked images {attacked_images}')
+        logger.info(f'Correctly attacked images: {correctly_attacked}')
+        scores['dev']['pretraining'] = dev_scores
+
         for epoch in tqdm(range(cfg.train_params.fine_tune_epochs)):
             adv_train(epoch=epoch, loader=train_loader, model=model,
                       optimizer=optimizer,
                       loss_func=loss,
                       log_freq=cfg.train_params.log_freq,
                       attack=attack,
-                      type_of_attack=cfg.attack_type.name,
+                      type_of_attack=cfg.params_attack.name,
                       attack_per_batch=cfg.params_attack.attack_per_batch)
 
             # adv_validation(model, val_loader, loss, attack=attack,
             #                type_of_attack=cfg.attack_type.name,
             #                attack_per_batch=cfg.params_attack.attack_per_batch)
 
-            dev_scores = adv_testing(model, val_loader, attack=attack)
+            if (epoch + 1) % cfg.train_params.eval_every_n_epochs == 0 or \
+                    (epoch - 1) == cfg.train_params.fine_tune_epochs:
 
-            total, attacked_images, correctly_attacked = dev_scores
-            logger.info(
-                f'Dev Images {total}, attacked images {attacked_images}')
-            logger.info(f'Correctly attacked images: {correctly_attacked}')
+                dev_scores = adv_testing(model, val_loader, attack=test_attack)
 
-            # train_scores = adv_testing(model, train_loader, attack=attack)
-            #
-            # total, attacked_images, correctly_attacked = dev_scores
-            # logger.info(
-            #     f'Dev Images {total}, attacked images {attacked_images}')
-            # logger.info(f'Correctly attacked images: {correctly_attacked}')
+                total, attacked_images, correctly_attacked = dev_scores
+                logger.info(
+                    f'Dev Images {total}, attacked images {attacked_images}')
+                logger.info(f'Correctly attacked images: {correctly_attacked}')
 
-            # scores['train'][epoch] = train_scores
-            scores['dev'][epoch] = dev_scores
+                # train_scores = adv_testing(model, train_loader, attack=attack)
+                #
+                # total, attacked_images, correctly_attacked = dev_scores
+                # logger.info(
+                #     f'Dev Images {total}, attacked images {attacked_images}')
+                # logger.info(f'Correctly attacked images: {correctly_attacked}')
 
-        test_scores = adv_testing(model, test_loader, attack=attack)
+                # scores['train'][epoch] = train_scores
+                scores['dev'][epoch] = dev_scores
+
+        test_scores = adv_testing(model, test_loader, attack=test_attack)
 
         scores['test'] = test_scores
 
@@ -167,9 +193,9 @@ def main(cfg: NIRConfig):
                                                 results['dev'], \
                                                 results['test']
 
-    for k in train_scores:
+    for k in dev_scores:
         logger.info(f'Epoch {k}')
-        logger.info(f'Train scores {train_scores[k]}')
+        # logger.info(f'Train scores {train_scores[k]}')
         logger.info(f'Dev scores {dev_scores[k]}')
 
     logger.info(f'Final test scores {test_scores}')

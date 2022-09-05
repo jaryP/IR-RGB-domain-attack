@@ -22,6 +22,7 @@ train_params:
   device: 0
   pre_trained: false
   fine_tune_epochs: 100
+  eval_every_n_epochs: 10
 
 params_attack:
   x_dim: 0.1
@@ -31,3 +32,14 @@ params_attack:
   attack_per_batch: 4
   pixels_per_iteration: 10
   mode: htl
+  name: white
+
+test_params_attack:
+  x_dim: 0.1
+  y_dim: 0.1
+  rest: 100
+  max_iter: 50
+  attack_per_batch: 4
+  pixels_per_iteration: 0.05
+  mode: htl
+  name: white
