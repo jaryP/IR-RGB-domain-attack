@@ -13,7 +13,7 @@ case $DATASET in
     convnext_tiny)
       python main.py +dataset=cifar10 experiment=base +training.resize_dimensions=128 +model=convnext_tiny optimizer=sgd_momentum +training=cifar10 hydra.run.dir='./results/training/cifar10/convnext_tiny' +attacks=cifar10 training.device="$DEVICE"
     ;;
-    resnet)
+    resnet20)
       python main.py +dataset=cifar10 experiment=base +model=resnet20 optimizer=sgd_momentum +training=cifar10 hydra.run.dir='./results/training/cifar10/resnet20' +attacks=cifar10 training.device="$DEVICE"
     ;;
     *)

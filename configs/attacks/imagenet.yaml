@@ -2,8 +2,8 @@
   name: black_pixle
   restarts: 100
   max_iterations: 20
-  x_dimensions: 3
-  y_dimensions: 3
+  x_dimensions: 0.01
+  y_dimensions: 0.01
   save_images: true
   load: true
   swap: false
@@ -12,12 +12,10 @@
   name: white_pixle
   restarts: 100
   max_iterations: 20
-  x_dimensions: 3
-  y_dimensions: 3
+  pixels_per_iteration: 0.01
   save_images: true
-  load: true
+  load: false
   swap: false
-  pixel_mapping: random
 #scratch_3bezier:
 #  name: scratch_that
 #  pupulation: 50

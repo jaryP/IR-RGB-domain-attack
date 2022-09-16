@@ -177,8 +177,7 @@ def get_attack(cfg: DictConfig):
                                               (1, 10)),
                          update_each_iteration=cfg.get(
                              'update_each_iteration',
-                             False)
-                         )
+                             False))
         elif name == 'white_pixle':
             return RandomWhitePixle(model,
                                     pixels_per_iteration=cfg.get(
@@ -187,7 +186,7 @@ def get_attack(cfg: DictConfig):
                                     average_channels=cfg.get('average_channels',
                                                              True),
                                     max_iterations=cfg['max_iterations'],
-                                    restarts=cfg.get('restarts', 0),
+                                    restarts=cfg.get('restarts', 10),
                                     )
         elif name == 'patch_white_pixle':
             return PatchWhitePixle(model,

@@ -1,7 +1,5 @@
 import csv
 import os
-import sys
-from typing import Sequence
 
 import numpy as np
 import torch
@@ -176,18 +174,8 @@ class TinyImagenet(Dataset):
         return img, target
 
 
-class HiddenPrints:
-    def __enter__(self):
-        self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout.close()
-        sys.stdout = self._original_stdout
-
-
 def get_dataset(name, model_name, resize_dimensions=None,
-                augmentation=False, path=None):
+                augmentation=True, path=None):
     if path is None:
         if name == 'imagenet':
             dataset_base_path = 'var/datasets/imagenet/'
@@ -240,7 +228,7 @@ def get_dataset(name, model_name, resize_dimensions=None,
             # Normalize(mn, std)
         ]
 
-        if resize_dimensions is not None:
+        if resize_dimensions is not None and isinstance(resize_dimensions, int):
             tt.append(Resize(resize_dimensions))
             t.append(Resize(resize_dimensions))
 
@@ -277,7 +265,7 @@ def get_dataset(name, model_name, resize_dimensions=None,
                                  (0.2023, 0.1994, 0.2010))
         ]
 
-        if resize_dimensions is not None:
+        if resize_dimensions is not None and isinstance(resize_dimensions, int):
             tt.append(Resize(resize_dimensions))
             t.append(Resize(resize_dimensions))
 
@@ -309,7 +297,7 @@ def get_dataset(name, model_name, resize_dimensions=None,
                                  (0.229, 0.224, 0.225))
         ]
 
-        if resize_dimensions is not None:
+        if resize_dimensions is not None and isinstance(resize_dimensions, int):
             tt.append(Resize(resize_dimensions))
             t.append(Resize(resize_dimensions))
 
@@ -340,16 +328,16 @@ def get_dataset(name, model_name, resize_dimensions=None,
 
         tt, t = [], []
 
-        if resize_dimensions is not None:
+        if resize_dimensions is not None and isinstance(resize_dimensions, int):
             tt.append(Resize((resize_dimensions, resize_dimensions)))
             t.append(Resize((resize_dimensions, resize_dimensions)))
             input_size = (resize_dimensions, resize_dimensions)
 
         if augmentation:
             tt.extend([
-                       transforms.RandomCrop(resize_dimensions,
-                                             padding=28),
-                       RandomHorizontalFlip()])
+                transforms.RandomCrop(resize_dimensions,
+                                      padding=28),
+                RandomHorizontalFlip()])
 
         tt.extend([ToTensor(),
                    transforms.Normalize(0.5, 0.5)])
@@ -402,53 +390,10 @@ def get_optimizer(parameters,
         raise ValueError('Optimizer must be adam or sgd')
 
 
-def ece_score(ground_truth: Sequence,
-              predictions: Sequence,
-              probs: Sequence,
-              bins: int = 30):
-    ground_truth = np.asarray(ground_truth)
-    predictions = np.asarray(predictions)
-    probs = np.asarray(probs)
-
-    probs = np.max(probs, -1)
-
-    prob_pred = np.zeros((0,))
-    prob_true = np.zeros((0,))
-    ece = 0
-
-    mce = []
-
-    for b in range(1, int(bins) + 1):
-        i = np.logical_and(probs <= b / bins, probs > (
-                b - 1) / bins)  # indexes for p in the current bin
-
-        s = np.sum(i)
-
-        if s == 0:
-            prob_pred = np.hstack((prob_pred, 0))
-            prob_true = np.hstack((prob_true, 0))
-            continue
-
-        m = 1 / s
-        acc = m * np.sum(predictions[i] == ground_truth[i])
-        conf = np.mean(probs[i])
-
-        prob_pred = np.hstack((prob_pred, conf))
-        prob_true = np.hstack((prob_true, acc))
-        diff = np.abs(acc - conf)
-
-        mce.append(diff)
-
-        ece += (s / len(ground_truth)) * diff
-
-    return ece, prob_pred, prob_true, mce
-
-
 def model_training(model: nn.Module,
                    epochs: int,
                    optimizer: Optimizer,
                    dataloader: DataLoader):
-
     device = next(model.parameters()).device
 
     for epoch in tqdm(range(epochs)):
@@ -467,57 +412,6 @@ def model_training(model: nn.Module,
             optimizer.step()
 
     return model
-
-@torch.no_grad()
-def model_evaluation(model: nn.Module,
-                   dataloader: DataLoader):
-
-    device = next(model.parameters()).device
-
-    model.eval()
-    tot = 0
-    correct = 0
-
-    for i, (inputs, labels) in enumerate(dataloader, 0):
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-
-        outputs = model(inputs)
-
-        tot += len(outputs)
-        correct += torch.argmax(outputs, -1).eq(labels).cpu().sum().item()
-
-    return tot, correct
-
-
-@torch.no_grad()
-def model_evaluator(backbone: nn.Module,
-                    classifier: nn.Module,
-                    dataloader: DataLoader,
-                    device: str = 'cpu'):
-    backbone.to(device)
-    classifier.to(device)
-
-    backbone.eval()
-    classifier.eval()
-
-    total = 0
-    correct = 0
-
-    for inputs, labels in dataloader:
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-
-        e = backbone(inputs)
-        outputs = classifier(e)
-
-        _, predicted = torch.max(outputs, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-    score = correct / total
-
-    return score, total, correct
 
 
 def get_model(name, image_size, classes, pre_trained=False,
@@ -590,3 +484,5 @@ def get_model(name, image_size, classes, pre_trained=False,
         assert False
 
     return model
+
+

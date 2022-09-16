@@ -20,15 +20,16 @@ class Params:
     test: Union[float, int]
     classes: int
     img_size: int
+    images_to_attack_per_label: int
 
 
 @dataclass
 class TrainParams:
-    epoch_count: int
+    pre_training_epochs: int
     lr: float
     log_freq: int
     device: Union[str, int]
-    fine_tune_epochs: int
+    adv_training_epochs: int
     pre_trained: bool
     eval_every_n_epochs: int
 

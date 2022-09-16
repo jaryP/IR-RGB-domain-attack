@@ -9,7 +9,3 @@ if [ ! -d tiny-imagenet-200 ]; then
   unzip -o tiny-imagenet-200.zip
   rm tiny-imagenet-200.zip
 fi
-
-cd $pwd
-#python tiny_imagenet.py
-
