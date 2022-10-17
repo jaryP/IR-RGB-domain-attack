@@ -16,22 +16,22 @@
   save_images: true
   load: true
   swap: false
-1px_pixle_white_2:
-  name: white_pixle
-  restarts: 100
-  max_iterations: 20
-  pixels_per_iteration: 3
-  save_images: true
-  load: true
-  swap: false
-1px_pixle_white_3:
-  name: white_pixle
-  restarts: 100
-  max_iterations: 20
-  pixels_per_iteration: 10
-  save_images: true
-  load: true
-  swap: false
+#1px_pixle_white_2:
+#  name: white_pixle
+#  restarts: 100
+#  max_iterations: 20
+#  pixels_per_iteration: 3
+#  save_images: true
+#  load: true
+#  swap: false
+#1px_pixle_white_3:
+#  name: white_pixle
+#  restarts: 100
+#  max_iterations: 20
+#  pixels_per_iteration: 10
+#  save_images: true
+#  load: true
+#  swap: false
 scratch_3bezier:
   name: scratch_that
   pupulation: 50
@@ -40,8 +40,8 @@ scratch_3bezier:
   crossover: 0.7
   scratch_type: bezier
   save_images: true
-#onepixel5:
-#  name: onepixel
-#  pixels: 5
-#  steps: 50
-#  popsize: 100
+onepixel5:
+  name: onepixel
+  pixels: 5
+  steps: 50
+  popsize: 100

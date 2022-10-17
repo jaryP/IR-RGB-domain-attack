@@ -4,7 +4,10 @@ import pickle
 from collections import defaultdict
 from copy import deepcopy
 
+import numpy as np
 import torch
+from loss_landscapes.model_interface.model_parameters import ModelParameters
+from matplotlib import pyplot as plt
 from torch import nn
 from torch import optim
 from torch.utils.data import random_split, DataLoader, TensorDataset
@@ -23,15 +26,44 @@ from base.utils import get_model, get_dataset, model_training
 from base.evaluation import model_evaluation, corrupted_cifar_scores, \
     attack_dataset
 from configs.nir_config import NIRConfig
+import loss_landscapes
 
 logger = logging.getLogger(__name__)
 
-handler = logging.FileHandler('file.log', mode='w')
-logger.addHandler(handler)
+logging.basicConfig(force=True,
+                    handlers=[
+                        logging.FileHandler("info.log", mode='w'),
+                        logging.StreamHandler()
+                    ],
+                    level=logging.INFO,
+                    datefmt='%d/%b/%Y %H:%M:%S',
+                    format="[%(asctime)s] %(levelname)s "
+                           "[%(name)s:%(lineno)s] %(message)s")
+
+# handler = logging.FileHandler('file.log', mode='w')
+# logger.addHandler(handler)
 
 # logger = logging.basicConfig(filemode=logging.DEBUG, filemode='w',
 #                              filename='file.log',
 #                              format='%(asctime)s %(levelname)s % (message)s')
+#
+# def rand_u_like(example_vector: ModelParameters) -> ModelParameters:
+#     new_vector = []
+#
+#     for param in example_vector:
+#         new_vector.append(torch.rand(size=param.size(), dtype=example_vector[0].dtype).to(param.device))
+#
+#     return ModelParameters(new_vector)
+#
+#
+# def rand_n_like(example_vector: ModelParameters) -> ModelParameters:
+#     new_vector = []
+#
+#     for param in example_vector:
+#         new_vector.append(torch.randn(size=param.size(), dtype=example_vector[0].dtype).to(param.device))
+#
+#     return ModelParameters(new_vector)
+
 
 cs = ConfigStore.instance()
 cs.store(name="NIR_config", node=NIRConfig)
@@ -97,7 +129,7 @@ def main(cfg: NIRConfig):
                                   mode=cfg.params_attack.mode,
                                   pixels_per_iteration=cfg.params_attack.pixels_per_iteration,
                                   restarts=cfg.params_attack.rest,
-                                  iterations=cfg.params_attack.max_iter)
+                                  max_iterations=cfg.params_attack.max_iter)
 
     elif 'black' in cfg.test_params_attack.name:
         attack = Pixle(model=adv_trained_model,
@@ -124,8 +156,8 @@ def main(cfg: NIRConfig):
     # else:
     #     assert False, 'The possible attacks are: white, black, {} given'
 
-    attacks_dict = {
-        'test_attack': OmegaConf.to_container(cfg.test_params_attack)}
+    # attacks_dict = {
+    #     'test_attack': OmegaConf.to_container(cfg.test_params_attack)}
 
     if not os.path.exists('results.pt'):
         base_model_path = f'~/leonardo/' \
@@ -139,9 +171,18 @@ def main(cfg: NIRConfig):
 
         if os.path.exists('adv_model.pt'):
             logger.info('Adv. Model loaded.')
+
             pre_trained_model.load_state_dict(
+                torch.load(os.path.join(base_model_path, 'model.pt'),
+                           map_location=device))
+
+            adv_trained_model.load_state_dict(
                 torch.load('adv_model.pt',
                            map_location=device))
+
+            with open('results.json', 'r') as file:
+                accuracy_scores = json.load(file)
+
         else:
             attack_scores = {'train': {}, 'dev': {}, 'test': {},
                              'corrupted': {}}
@@ -155,6 +196,7 @@ def main(cfg: NIRConfig):
                 pre_trained_model.load_state_dict(
                     torch.load(os.path.join(base_model_path, 'model.pt'),
                                map_location=device))
+
             else:
                 optimizer = optim.Adam(pre_trained_model.parameters(),
                                        lr=cfg.train_params.lr)
@@ -167,13 +209,13 @@ def main(cfg: NIRConfig):
                 torch.save(pre_trained_model.state_dict(),
                            os.path.join(base_model_path, 'model.pt'))
 
-            attack_dataset(model=pre_trained_model,
-                           dataset=test_set,
-                           saving_path='.',
-                           images_to_attack_per_label=images_to_attack_per_label,
-                           attacks=attacks_dict,
-                           serialize_names={
-                               'test_attack': 'pretrained_test_attack'})
+            # attack_dataset(model=pre_trained_model,
+            #                dataset=test_set,
+            #                saving_path='.',
+            #                images_to_attack_per_label=images_to_attack_per_label,
+            #                attacks=attacks_dict,
+            #                serialize_names={
+            #                    'test_attack': 'pretrained_test_attack'})
 
             tot, corrects = model_evaluation(model=pre_trained_model,
                                              dataloader=test_loader)
@@ -346,25 +388,91 @@ def main(cfg: NIRConfig):
 
         dataset = TensorDataset(images, labels, indexes)
 
-        attack_dataset(model=pre_trained_model,
-                       build_dataset=False,
-                       n_classes=n_classes,
-                       dataset=dataset,
-                       saving_path='.',
-                       images_to_attack_per_label=images_to_attack_per_label,
-                       attacks=attacks_dict,
-                       serialize_names={
-                           'test_attack': 'pretrained_test_attack_final'})
+        tot, corrects = model_evaluation(model=pre_trained_model,
+                                         dataloader=test_loader)
+        logger.info(f'Pre-trained test score {corrects / tot}, '
+            f'({corrects}/{tot})')
 
-        attack_dataset(model=adv_trained_model,
-                       build_dataset=False,
-                       dataset=dataset,
-                       n_classes=n_classes,
-                       saving_path='.',
-                       images_to_attack_per_label=images_to_attack_per_label,
-                       attacks=attacks_dict,
-                       serialize_names={
-                           'test_attack': 'final_test_attack_final'})
+        tot, corrects = model_evaluation(model=adv_trained_model,
+                                         dataloader=test_loader)
+        logger.info(f'Adv-trained test score {corrects / tot}, '
+            f'({corrects}/{tot})')
+
+        if hasattr(cfg, 'attacks'):
+            atks = cfg.attacks
+            atks = OmegaConf.to_container(atks)
+
+            attack_dataset(model=pre_trained_model,
+                           build_dataset=False,
+                           dataset=dataset,
+                           n_classes=n_classes,
+                           saving_path='.',
+                           images_to_attack_per_label=images_to_attack_per_label,
+                           attacks=atks,
+                           serialize_names=lambda x: 'pretrained_'+x)
+
+            attack_dataset(model=adv_trained_model,
+                           build_dataset=False,
+                           dataset=dataset,
+                           n_classes=n_classes,
+                           saving_path='.',
+                           images_to_attack_per_label=images_to_attack_per_label,
+                           attacks=atks,
+                           serialize_names=lambda x: 'final_'+x)
+
+    if cfg.dataset.name == 'cifar10':
+        for k, severity in accuracy_scores['accuracy']['corrupted'][-1].items():
+            v = 0
+
+            for si, (tot, pred) in severity.items():
+                otot, opred = accuracy_scores['accuracy']['corrupted'][0][k][si]
+                v += (pred / tot) / (opred / otot)
+
+            logger.info(f'Corruption {k}, CE: {v / 5}')
+
+    # x, y = next(iter(DataLoader(test_set, batch_size=512)))
+    # # x, y = x.to(device), y.to(device)
+    #
+    # criterion = nn.CrossEntropyLoss()
+    # metric = loss_landscapes.metrics.Loss(criterion, x, y)
+    # loss_data_fin = loss_landscapes.random_plane(pre_trained_model.cpu(), metric, 10, 10,
+    #                                              normalization='filter',
+    #                                              deepcopy_model=True)
+    #
+    # plt.figure()
+    # plt.contour(loss_data_fin, levels=50)
+    # plt.title('Loss Contours around Trained Model')
+    # plt.savefig('pre_cont.pdf')
+    # plt.close()
+    #
+    # plt.figure()
+    # ax = plt.axes(projection='3d')
+    # X = np.array([[j for j in range(10)] for i in range(10)])
+    # Y = np.array([[i for _ in range(10)] for i in range(10)])
+    # ax.plot_surface(X, Y, loss_data_fin, rstride=1, cstride=1, cmap='viridis',
+    #                 edgecolor='none')
+    # ax.set_title('Surface Plot of Loss Landscape')
+    # plt.savefig('pre_surf.pdf')
+    #
+    # loss_data_fin = loss_landscapes.random_plane(adv_trained_model.cpu(), metric, 10,
+    #                                              10,
+    #                                              normalization='filter',
+    #                                              deepcopy_model=True)
+    #
+    # plt.figure()
+    # plt.contour(loss_data_fin, levels=50)
+    # plt.title('Loss Contours around Trained Model')
+    # plt.savefig('post_cont.pdf')
+    # plt.close()
+    #
+    # plt.figure()
+    # ax = plt.axes(projection='3d')
+    # X = np.array([[j for j in range(10)] for i in range(10)])
+    # Y = np.array([[i for _ in range(10)] for i in range(10)])
+    # ax.plot_surface(X, Y, loss_data_fin, rstride=1, cstride=1, cmap='viridis',
+    #                 edgecolor='none')
+    # ax.set_title('Surface Plot of Loss Landscape')
+    # plt.savefig('post_surf.pdf')
 
     logger.info('The training process is over')
 

@@ -485,8 +485,9 @@ class RandomWhitePixle(Attack):
                  pixels_per_iteration=1,
                  mode='htl',
                  average_channels=True,
+                 acceptance_threshold=1,
                  restarts=20,
-                 iterations=100,
+                 max_iterations=100,
                  **kwargs):
 
         super().__init__("Pixle", model)
@@ -498,11 +499,14 @@ class RandomWhitePixle(Attack):
         assert mode in ['htl', 'lth']
 
         self.mode = mode
-        self.iterations = iterations
+        self.iterations = max_iterations
         self.pixels_per_iteration = pixels_per_iteration
 
         self.restarts = restarts
         self.average_channels = average_channels
+
+        self.acceptance_threshold = acceptance_threshold
+        assert 0 < acceptance_threshold <= 1, 'acceptance_threshold must be in (0, 1]'
 
         self._supported_mode = ['default', 'targeted']
 
@@ -537,6 +541,8 @@ class RandomWhitePixle(Attack):
             image_swapped_pixels = []
 
             im_iterations = 0
+
+            initial_loss = loss_f(img)
 
             for restart_i in range(self.restarts):
 
@@ -652,45 +658,17 @@ class RandomWhitePixle(Attack):
 
                     image_probs.append(best_loss)
 
-                    if callback_f(pert_image):
+                    if callback_f(pert_image) \
+                            and best_loss < self.acceptance_threshold * initial_loss:
                         best_solution = (aa, bb)
                         best_adv_image = pert_image.clone()
                         stop = True
                         break
 
                 im_iterations += patch_i
-                # if best_solution is not None:
-                #     image_swapped_pixels.append(best_solution)
-                #
-                #     aa, bb = best_solution
-                #
-                #     # aa = [np.unravel_index(_a, shape) for _a in
-                #     #       selected_indexes1]
-                #     # bb = [np.unravel_index(_b, shape) for _b in
-                #     #       selected_indexes2]
-                #     # aa = torch.tensor([np.unravel_index(_a, shape) for _a in
-                #     #                    selected_indexes1], device=self.device)
-                #     #
-                #     # bb = torch.tensor([np.unravel_index(_b, shape) for _b in
-                #     #                    selected_indexes2], device=self.device)
-                #
-                #     # best_adv_image[:, aa[:, 0], aa[:, 1]] = \
-                #     #     img[:, bb[:, 0], bb[:, 1]]
-                #
-                #     # for a, b in zip(aa, bb):
-                #     if self.average_channels:
-                #         # best_adv_image[:, bb[0], bb[1]] = img[:, aa[0], aa[1]]
-                #         best_adv_image[:, aa[:, 0], aa[:, 1]] = \
-                #             img[:, bb[:, 0], bb[:, 1]]
-                #     else:
-                #         # best_adv_image[bb[0], b[1], b[2]] = img[
-                #         #     a[0], a[1], a[2]]
-                #         # if self.swap:
-                #         #     adv_img[a[0], a[1], a[2]] = v
-                #         best_adv_image[aa[:, 0], aa[:, 1], aa[:, 2]] = \
-                #             img[bb[:, 0], bb[:, 1], bb[:, 2]]
+                image_swapped_pixels.append(best_solution)
 
-                if stop:
+                if stop or best_solution is None:
                     break
                 else:
                     img = best_adv_image.clone()

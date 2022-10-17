@@ -230,14 +230,20 @@ def attack_dataset(model: nn.Module,
         v = get_default_attack_config(v)
         attack_factory = get_attack(v)
 
+        if callable(serialize_names):
+            name = serialize_names(k)
+        elif isinstance(serialize_names, dict):
+            name = serialize_names.get(k, k)
+        else:
+            name = k
+
         log.info('Attack {}, Parameters {}'.format(k, v))
 
         attack_save_path = os.path.join(saving_path, 'attacks',
-                                        '{}.json'.format(serialize_names.get(k, k)))
+                                        '{}.json'.format(name))
 
         attack_images_save_path = os.path.join(saving_path, 'attacks',
-                                               '{}_images'.format(
-                                                   serialize_names.get(k, k)))
+                                               '{}_images'.format(name))
 
         base_images_save_path = os.path.join(saving_path, 'attacks',
                                              'attacked_images')
@@ -252,6 +258,25 @@ def attack_dataset(model: nn.Module,
                         as json_file:
                     attack_results = json.load(json_file)
 
+                    # log.info(f'Results from file {serialize_names.get(k, k)}')
+                    #
+                    # correctly_attacked, mean_time, std_time, \
+                    # mean_iterations, std_iterations, mean_zeron, std_zeron = \
+                    #     calculate_scores(attack_results)
+                    #
+                    # log.info('\t\tCorrectly attacked: {}/{} ({})'
+                    #          .format(int(correctly_attacked * len(dataset)),
+                    #                  len(dataset), correctly_attacked))
+                    #
+                    # log.info('\t\tIterations required per image: {}(+-{})'
+                    #          .format(mean_iterations, std_iterations))
+                    #
+                    # log.info('\t\tZero norm per image: {}(+-{})'
+                    #          .format(mean_zeron, std_zeron))
+                    #
+                    # log.info('\t\tTime required per image: {}(+-{})'
+                    #          .format(mean_time, std_time))
+
             except Exception as e:
                 attack_results = {'name': k,
                                   'values': v}
@@ -264,7 +289,7 @@ def attack_dataset(model: nn.Module,
         if isinstance(attack, OnePixel):
             attack._supported_mode = ['default', 'targeted']
 
-        if len(attack_results) - 2 != len(dataset):
+        if len(attack_results) - 2 <= len(dataset):
             for img, y, image_index in tqdm(DataLoader(dataset,
                                                        batch_size=1,
                                                        shuffle=False),
@@ -387,7 +412,7 @@ def attack_dataset(model: nn.Module,
 
         all_attack_results[k] = attack_results
 
-        log.info(f'Results from file {serialize_names.get(k, k)}')
+        log.info(f'Results from file {name}')
 
         correctly_attacked, mean_time, std_time, \
         mean_iterations, std_iterations, mean_zeron, std_zeron = \
@@ -406,7 +431,7 @@ def attack_dataset(model: nn.Module,
         log.info('\t\tTime required per image: {}(+-{})'
                  .format(mean_time, std_time))
 
-    return all_attack_results
+    return all_attack_results, dataset
 
 
 class HiddenPrints:

@@ -1,0 +1,24 @@
+1px_pixle_white_2:
+  name: white_pixle
+  restarts: 500
+  max_iterations: 20
+  pixels_per_iteration: 0.05
+  acceptance_threshold: 1
+1px_pixle_white_1:
+  name: white_pixle
+  restarts: 500
+  max_iterations: 20
+  pixels_per_iteration: 1
+  acceptance_threshold: 1
+1px_pixle_white_3:
+  name: white_pixle
+  restarts: 500
+  max_iterations: 20
+  pixels_per_iteration: 0.1
+  acceptance_threshold: 1
+1px_pixle_white_4:
+  name: white_pixle
+  restarts: 500
+  max_iterations: 20
+  pixels_per_iteration: 0.01
+  acceptance_threshold: 1

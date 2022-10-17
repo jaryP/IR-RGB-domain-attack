@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, List
 
 
 @dataclass
@@ -65,6 +65,7 @@ class WhitePixelAttack:
     mode: str
     name: str
 
+
 @dataclass
 class Attacks:
     name: str
@@ -82,3 +83,5 @@ class NIRConfig:
     test_params_attack: WhitePixelAttack
     dataset: Data
     attack_type: Attacks
+    attacks: List[WhitePixelAttack]
+

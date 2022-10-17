@@ -329,15 +329,19 @@ def get_dataset(name, model_name, resize_dimensions=None,
         tt, t = [], []
 
         if resize_dimensions is not None and isinstance(resize_dimensions, int):
-            tt.append(Resize((resize_dimensions, resize_dimensions)))
+            # tt.append(Resize((resize_dimensions, resize_dimensions)))
             t.append(Resize((resize_dimensions, resize_dimensions)))
             input_size = (resize_dimensions, resize_dimensions)
+        else:
+            resize_dimensions = input_size
+            # tt.append(Resize(resize_dimensions))
+            t.append(Resize(resize_dimensions))
 
+        tt.append(
+            transforms.RandomCrop(resize_dimensions,
+                                  padding=28))
         if augmentation:
-            tt.extend([
-                transforms.RandomCrop(resize_dimensions,
-                                      padding=28),
-                RandomHorizontalFlip()])
+                tt.append(RandomHorizontalFlip())
 
         tt.extend([ToTensor(),
                    transforms.Normalize(0.5, 0.5)])
@@ -435,8 +439,9 @@ def get_model(name, image_size, classes, pre_trained=False,
         else:
             assert False
 
-        model.classifier[-1] = nn.Linear(
-            model.classifier[-1].in_features, classes)
+        if not is_imagenet:
+            model.classifier[-1] = nn.Linear(
+                model.classifier[-1].in_features, classes)
 
     elif 'resnet' in name:
         if name == 'resnet20':
@@ -450,8 +455,9 @@ def get_model(name, image_size, classes, pre_trained=False,
         else:
             assert False
 
-        model.fc = nn.Linear(
-            model.fc.in_features, classes)
+        if not is_imagenet:
+            model.fc = nn.Linear(
+                model.fc.in_features, classes)
 
     elif 'resnext' in name:
         weights = None
@@ -464,8 +470,9 @@ def get_model(name, image_size, classes, pre_trained=False,
         else:
             assert False
 
-        model.fc = nn.Linear(
-            model.fc.in_features, classes)
+        if not is_imagenet:
+            model.fc = nn.Linear(
+                model.fc.in_features, classes)
 
     elif 'convnext' in name:
         if pre_trained:
@@ -477,9 +484,9 @@ def get_model(name, image_size, classes, pre_trained=False,
             model = torchvision.models.convnext_tiny(weights)
         else:
             assert False
-
-        model.classifier[-1] = nn.Linear(
-            model.classifier[-1].in_features, classes)
+        if not is_imagenet:
+            model.classifier[-1] = nn.Linear(
+                model.classifier[-1].in_features, classes)
     else:
         assert False
 

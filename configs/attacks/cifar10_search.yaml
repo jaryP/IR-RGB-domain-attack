@@ -1,0 +1,136 @@
+pixle_white_1:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 1
+  save_images: false
+  load: false
+  swap: false
+pixle_white_2:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 0.1
+  save_images: false
+  load: false
+  swap: false
+pixle_white_3:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 0.2
+  save_images: false
+  load: false
+  swap: false
+pixle_white_4:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 20
+  pixels_per_iteration: 0.01
+  save_images: false
+  load: false
+  swap: false
+pixle_white_1_100:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 100
+  pixels_per_iteration: 1
+  save_images: false
+  load: true
+  swap: false
+pixle_white_2_100:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 100
+  pixels_per_iteration: 0.1
+  save_images: false
+  load: true
+  swap: false
+pixle_white_3_100:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 100
+  pixels_per_iteration: 0.2
+  save_images: false
+  load: true
+  swap: false
+pixle_white_4_100:
+  name: white_pixle
+  restarts: 100
+  max_iterations: 100
+  pixels_per_iteration: 0.01
+  save_images: false
+  load: true
+  swap: false
+pixle_1:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 1
+  y_dimensions: 1
+  save_images: false
+  load: true
+  swap: false
+pixle_2:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 0.1
+  y_dimensions: 0.1
+  save_images: false
+  load: true
+  swap: false
+pixle_3:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 0.2
+  y_dimensions: 0.2
+  save_images: false
+  load: true
+  swap: false
+pixle_4:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 20
+  x_dimensions: 0.01
+  y_dimensions: 0.01
+  save_images: false
+  load: true
+  swap: false
+pixle_1_100:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 100
+  x_dimensions: 1
+  y_dimensions: 1
+  save_images: false
+  load: true
+  swap: false
+pixle_2_100:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 100
+  x_dimensions: 0.1
+  y_dimensions: 0.1
+  save_images: false
+  load: true
+  swap: false
+pixle_3_100:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 100
+  x_dimensions: 0.2
+  y_dimensions: 0.2
+  save_images: false
+  load: true
+  swap: false
+pixle_4_100:
+  name: black_pixle
+  restarts: 100
+  max_iterations: 100
+  x_dimensions: 0.01
+  y_dimensions: 0.01
+  save_images: false
+  load: true
+  swap: false
